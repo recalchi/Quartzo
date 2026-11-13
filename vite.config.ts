@@ -1,10 +1,12 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import pkg from './package.json' with { type: 'json' };
 
 // mode "electron": sem service worker (o app é servido pelo protocolo quartzo://)
 export default defineConfig(({ mode }) => ({
   base: './',
+  define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   plugins: [
     react(),
     mode !== 'electron' &&
@@ -15,8 +17,8 @@ export default defineConfig(({ mode }) => ({
           name: 'Quartzo',
           short_name: 'Quartzo',
           description: 'Notas em Markdown conectadas e sincronizadas com o Recalchi Manage',
-          theme_color: '#1b1428',
-          background_color: '#141019',
+          theme_color: '#1e1e1e',
+          background_color: '#1e1e1e',
           display: 'standalone',
           start_url: './',
           icons: [

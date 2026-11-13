@@ -17,7 +17,7 @@ function createWindow() {
     height: 820,
     minWidth: 420,
     minHeight: 500,
-    backgroundColor: '#141019',
+    backgroundColor: '#1e1e1e',
     title: 'Quartzo',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     autoHideMenuBar: true,

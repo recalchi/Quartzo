@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Quartzo',
   webDir: 'dist',
   android: {
-    backgroundColor: '#141019',
+    backgroundColor: '#1e1e1e',
   },
 };
 
