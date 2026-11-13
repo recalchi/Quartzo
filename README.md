@@ -13,13 +13,20 @@ Markdown · links entre notas · grafo · offline · sincronizado com o **Recalc
 ![stack](https://img.shields.io/badge/React%2018-Vite-646cff)
 ![firebase](https://img.shields.io/badge/Firebase-Auth%20%2B%20Firestore-ffca28)
 ![licença](https://img.shields.io/badge/licença-MIT-7be0a8)
+[![CI](https://github.com/recalchi/Quartzo/actions/workflows/ci.yml/badge.svg)](https://github.com/recalchi/Quartzo/actions/workflows/ci.yml)
 
 </div>
 
 <p align="center">
-  <img src="docs/screenshots/desktop.png" width="74%" alt="Quartzo no desktop" />
+  <img src="docs/screenshots/desktop.png" width="72%" alt="Quartzo no desktop: editor e leitura lado a lado" />
   &nbsp;
-  <img src="docs/screenshots/mobile.png" width="22%" alt="Quartzo no celular" />
+  <img src="docs/screenshots/mobile.png" width="21%" alt="Quartzo no celular" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/graph.png" width="47%" alt="Grafo de conexões" />
+  &nbsp;
+  <img src="docs/screenshots/light.png" width="47%" alt="Tema claro" />
 </p>
 
 ---

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Quartzo</string>
+    <string name="title_activity_main">Quartzo</string>
+    <string name="package_name">br.com.recalchi.quartzo</string>
+    <string name="custom_url_scheme">br.com.recalchi.quartzo</string>
+</resources>

@@ -16,8 +16,8 @@ env.PATH = `${path.join(env.JAVA_HOME, 'bin')}${path.delimiter}${env.PATH}`;
 
 const variant = process.argv.includes('--release') ? 'Release' : 'Debug';
 const android = path.join(root, 'android');
-const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
-const r = spawnSync(gradlew, [`assemble${variant}`, '--no-daemon'], { cwd: android, env, stdio: 'inherit', shell: true });
+const gradlew = path.join(android, process.platform === 'win32' ? 'gradlew.bat' : 'gradlew');
+const r = spawnSync(`"${gradlew}"`, [`assemble${variant}`, '--no-daemon'], { cwd: android, env, stdio: 'inherit', shell: true });
 if (r.status !== 0) process.exit(r.status ?? 1);
 
 const v = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).version;
