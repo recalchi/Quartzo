@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "quartzo-dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--port", "5173", "--strictPort"],
+      "cwd": "D:\\Projetos\\code\\Quartzo",
+      "port": 5173
+    }
+  ]
+}

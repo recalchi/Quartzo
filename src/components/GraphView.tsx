@@ -31,8 +31,9 @@ export function GraphView({ notes, index, activeId, onOpen, onClose }: Props) {
     window.addEventListener('resize', resize);
 
     const nodes: Node[] = notes.map((n, i) => {
-      const a = (i / Math.max(1, notes.length)) * Math.PI * 2;
-      return { id: n.id, label: titleOf(n.path), x: Math.cos(a) * 200, y: Math.sin(a) * 200, vx: 0, vy: 0, deg: 0 };
+      const a = i * 2.39996;
+      const r = 30 + 18 * Math.sqrt(i);
+      return { id: n.id, label: titleOf(n.path), x: Math.cos(a) * r, y: Math.sin(a) * r, vx: 0, vy: 0, deg: 0 };
     });
     const byId = new Map(nodes.map((n) => [n.id, n]));
     const edges: [Node, Node][] = [];
@@ -64,8 +65,8 @@ export function GraphView({ notes, index, activeId, onOpen, onClose }: Props) {
       return nodes.find((n) => (n.x - p.x) ** 2 + (n.y - p.y) ** 2 < (6 + n.deg) ** 2 + 30) ?? null;
     };
 
-    const tick = () => {
-      if (alpha > 0.005) {
+    const step = () => {
+      {
         for (let i = 0; i < nodes.length; i++) {
           const a = nodes[i];
           for (let j = i + 1; j < nodes.length; j++) {
@@ -73,7 +74,7 @@ export function GraphView({ notes, index, activeId, onOpen, onClose }: Props) {
             let dx = a.x - b.x, dy = a.y - b.y;
             let d2 = dx * dx + dy * dy || 0.01;
             if (d2 > 160000) continue;
-            const f = (1400 / d2) * alpha;
+            const f = (3200 / d2) * alpha;
             const d = Math.sqrt(d2);
             dx /= d; dy /= d;
             a.vx += dx * f; a.vy += dy * f; b.vx -= dx * f; b.vy -= dy * f;
@@ -83,7 +84,7 @@ export function GraphView({ notes, index, activeId, onOpen, onClose }: Props) {
         for (const [a, b] of edges) {
           const dx = b.x - a.x, dy = b.y - a.y;
           const d = Math.sqrt(dx * dx + dy * dy) || 1;
-          const f = ((d - 70) / d) * 0.05 * alpha;
+          const f = ((d - 120) / d) * 0.05 * alpha;
           a.vx += dx * f; a.vy += dy * f; b.vx -= dx * f; b.vy -= dy * f;
         }
         for (const n of nodes) {
@@ -93,6 +94,13 @@ export function GraphView({ notes, index, activeId, onOpen, onClose }: Props) {
         }
         alpha *= 0.992;
       }
+    };
+    // pré-assenta o layout para o grafo já abrir organizado
+    for (let i = 0; i < 400; i++) step();
+    alpha = 0.3;
+
+    const tick = () => {
+      if (alpha > 0.005) step();
       ctx.clearRect(0, 0, w, h);
       ctx.save();
       ctx.translate(w / 2 + ox, h / 2 + oy);

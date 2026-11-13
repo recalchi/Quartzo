@@ -128,7 +128,16 @@ export const SHORTCUTS = `# Atalhos
 Voltar para [[Bem-vindo ao Quartzo]] · #ajuda
 `;
 
-export async function seedIfEmpty() {
+const seeding = new Map<string, Promise<void>>();
+
+/** Cria as notas iniciais uma única vez por banco (seguro contra chamadas concorrentes). */
+export function seedIfEmpty(): Promise<void> {
+  const name = getDB().name;
+  if (!seeding.has(name)) seeding.set(name, doSeed());
+  return seeding.get(name)!;
+}
+
+async function doSeed() {
   const db = getDB();
   const seeded = await db.meta.get('seeded');
   if (seeded) return;

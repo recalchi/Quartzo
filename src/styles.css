@@ -238,6 +238,18 @@ input { font: inherit; color: inherit; }
 .trash-row { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
 .trash-row span { flex: 1; overflow: hidden; text-overflow: ellipsis; }
 
+/* ---------- Painel de busca e autocompletar do editor ---------- */
+.cm-panels { border-top: 1px solid var(--border) !important; }
+.cm-panel.cm-search { padding: 8px 10px !important; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; font-family: var(--sans); }
+.cm-panel.cm-search input.cm-textfield { background: var(--bg2); border: 1px solid var(--border); border-radius: 7px; padding: 5px 8px; color: var(--text); outline: none; }
+.cm-panel.cm-search input.cm-textfield:focus { border-color: var(--accent); }
+.cm-panel.cm-search button.cm-button { background: var(--panel2); border: 1px solid var(--border); border-radius: 7px; padding: 4px 10px; color: var(--text); background-image: none; cursor: pointer; }
+.cm-panel.cm-search label { color: var(--muted); display: inline-flex; gap: 4px; align-items: center; }
+.cm-panel.cm-search button[name=close] { color: var(--muted); font-size: 18px; position: static; margin-left: auto; background: none; border: 0; cursor: pointer; }
+.cm-tooltip-autocomplete ul { font-family: var(--sans) !important; }
+.cm-tooltip-autocomplete ul li { padding: 4px 10px !important; }
+.cm-tooltip-autocomplete ul li[aria-selected] { background: color-mix(in srgb, var(--accent) 30%, transparent) !important; color: var(--text) !important; }
+
 /* ---------- Menu e modais ---------- */
 .menu-wrap { position: relative; }
 .menu {

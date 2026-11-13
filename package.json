@@ -24,12 +24,14 @@
     "@capacitor/android": "^7.4.0",
     "@capacitor/app": "^7.0.1",
     "@capacitor/core": "^7.4.0",
+    "@codemirror/autocomplete": "^6.20.4",
     "@codemirror/commands": "^6.8.1",
     "@codemirror/lang-markdown": "^6.3.2",
     "@codemirror/language": "^6.11.0",
     "@codemirror/search": "^6.5.10",
     "@codemirror/state": "^6.5.2",
     "@codemirror/view": "^6.36.8",
+    "@lezer/highlight": "^1.2.5",
     "dexie": "^4.0.11",
     "dexie-react-hooks": "^1.1.7",
     "dompurify": "^3.2.6",
@@ -54,9 +56,23 @@
   "build": {
     "appId": "br.com.recalchi.quartzo",
     "productName": "Quartzo",
-    "directories": { "output": "release", "buildResources": "build" },
-    "files": ["dist/**/*", "electron/**/*", "package.json"],
-    "win": { "icon": "build/icon.ico", "target": ["portable"] },
-    "portable": { "artifactName": "Quartzo-${version}-portable.exe" }
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        "portable"
+      ]
+    },
+    "portable": {
+      "artifactName": "Quartzo-${version}-portable.exe"
+    }
   }
 }

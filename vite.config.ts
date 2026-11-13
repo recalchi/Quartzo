@@ -28,6 +28,9 @@ export default defineConfig(({ mode }) => ({
         workbox: { maximumFileSizeToCacheInBytes: 5 * 1024 * 1024 },
       }),
   ].filter(Boolean),
+  resolve: {
+    alias: mode === 'electron' ? { 'virtual:pwa-register': '/src/lib/pwa-stub.ts' } : {},
+  },
   build: {
     chunkSizeWarningLimit: 1500,
   },

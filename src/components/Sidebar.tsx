@@ -35,9 +35,10 @@ interface Props {
   filterTag: string | null;
   onClearTag: () => void;
   tagIds: Set<string> | null;
+  showSync?: boolean;
 }
 
-export function Sidebar({ notes, activeId, onOpen, onNewInFolder, filterTag, onClearTag, tagIds }: Props) {
+export function Sidebar({ notes, activeId, onOpen, onNewInFolder, filterTag, onClearTag, tagIds, showSync = true }: Props) {
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
     try {
@@ -102,7 +103,7 @@ export function Sidebar({ notes, activeId, onOpen, onNewInFolder, filterTag, onC
             title={n.path}
           >
             <span className="name">{titleOf(n.path)}</span>
-            {!n.synced && <span className="dot" title="Aguardando sincronização" />}
+            {showSync && !n.synced && <span className="dot" title="Aguardando sincronização" />}
           </div>
         ))}
       </>

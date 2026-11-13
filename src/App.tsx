@@ -40,13 +40,12 @@ export default function App() {
 }
 
 function Workspace({ space, uid, account, onLogout }: { space: string; uid: string | null; account: string; onLogout: () => void }) {
-  const [ready, setReady] = useState(false);
+  // abre o banco do espaço antes do primeiro render (o live query já nasce assinando o banco certo)
+  useState(() => openSpace(space));
   const [sync, setSync] = useState<{ s: SyncState; d?: string }>({ s: uid ? 'idle' : 'local' });
   const engine = useRef<SyncEngine | null>(null);
 
   useEffect(() => {
-    openSpace(space);
-    setReady(true);
     if (uid) {
       const e = new SyncEngine(uid);
       engine.current = e;
@@ -57,7 +56,6 @@ function Workspace({ space, uid, account, onLogout }: { space: string; uid: stri
     void seedIfEmpty();
   }, [space, uid]);
 
-  if (!ready) return null;
   return <Shell account={account} onLogout={onLogout} sync={sync} engine={engine} />;
 }
 
@@ -67,7 +65,8 @@ function Shell({ account, onLogout, sync, engine }: {
   sync: { s: SyncState; d?: string };
   engine: React.MutableRefObject<SyncEngine | null>;
 }) {
-  const allNotes = useLiveQuery(() => getDB().notes.toArray(), [], [] as Note[]);
+  const db = getDB();
+  const allNotes = useLiveQuery(() => db.notes.toArray(), [db], [] as Note[]);
   const notes = useMemo(() => allNotes.filter((n) => !n.deleted), [allNotes]);
   const trash = useMemo(() => allNotes.filter((n) => n.deleted).sort((a, b) => b.updatedAt - a.updatedAt), [allNotes]);
   const index = useMemo(() => buildIndex(notes), [notes]);
@@ -169,15 +168,24 @@ function Shell({ account, onLogout, sync, engine }: {
       const mod = e.ctrlKey || e.metaKey;
       if (!mod) return;
       const k = e.key.toLowerCase();
-      if (k === 'p' || k === 'o') { e.preventDefault(); setSwitcher(true); }
-      else if (k === 'n') { e.preventDefault(); void create(); }
-      else if (k === 'e') { e.preventDefault(); setMode((m) => (m === 'edit' ? 'preview' : 'edit')); }
-      else if (k === 'd') { e.preventDefault(); void daily(); }
-      else if (k === 'g') { e.preventDefault(); setGraph(true); }
-      else if (k === '\\') { e.preventDefault(); setSidebar((s) => !s); }
+      const actions: Record<string, () => void> = {
+        p: () => setSwitcher(true),
+        o: () => setSwitcher(true),
+        n: () => void create(),
+        e: () => setMode((m) => (m === 'edit' ? 'preview' : 'edit')),
+        d: () => void daily(),
+        g: () => setGraph(true),
+        '\\': () => setSidebar((s) => !s),
+      };
+      const act = actions[k];
+      if (!act || e.shiftKey || e.altKey) return;
+      // fase de captura: tem prioridade sobre os atalhos internos do editor
+      e.preventDefault();
+      e.stopPropagation();
+      act();
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [create, daily]);
 
   // Botão voltar do Android
@@ -281,6 +289,7 @@ function Shell({ account, onLogout, sync, engine }: {
           filterTag={filterTag}
           onClearTag={() => setFilterTag(null)}
           tagIds={tagIds}
+          showSync={sync.s !== 'local'}
         />
         {tagList.length > 0 && (
           <div className="tags-cloud">
