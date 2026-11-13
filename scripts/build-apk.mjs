@@ -4,13 +4,15 @@ import { copyFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const root = path.resolve(import.meta.dirname, '..');
-const tools = process.env.QUARTZO_DEVTOOLS || 'D:\\DevTools';
+// D: é um HD externo lento; SDK e cache do Gradle ficam no SSD (E:) quando disponível.
+const tools = process.env.QUARTZO_DEVTOOLS || 'D:/DevTools';
+const fast = existsSync('E:/DevTools/android-sdk') ? 'E:/DevTools' : tools;
 const env = {
   ...process.env,
   JAVA_HOME: process.env.JAVA_HOME || path.join(tools, 'jdk21'),
-  ANDROID_HOME: process.env.ANDROID_HOME || path.join(tools, 'android-sdk'),
-  ANDROID_SDK_ROOT: process.env.ANDROID_SDK_ROOT || path.join(tools, 'android-sdk'),
-  GRADLE_USER_HOME: process.env.GRADLE_USER_HOME || path.join(tools, 'gradle-home'),
+  ANDROID_HOME: process.env.ANDROID_HOME || path.join(fast, 'android-sdk'),
+  ANDROID_SDK_ROOT: process.env.ANDROID_SDK_ROOT || path.join(fast, 'android-sdk'),
+  GRADLE_USER_HOME: process.env.GRADLE_USER_HOME || path.join(fast, 'gradle-home'),
 };
 env.PATH = `${path.join(env.JAVA_HOME, 'bin')}${path.delimiter}${env.PATH}`;
 

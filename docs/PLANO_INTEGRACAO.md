@@ -41,7 +41,10 @@
 - [x] PWA instalável, shell desktop Electron e projeto Android (Capacitor)
 - [x] Identidade visual própria (cristal de quartzo)
 
-## Fase 1 — Colocar para rodar no dia a dia (1–2 dias)
+## Fase 1 — Colocar para rodar no dia a dia ✅ (13/11/2026)
+
+Regras publicadas no console, APK e Windows na [Release v0.2.0](https://github.com/recalchi/Quartzo/releases/tag/v0.2.0).
+
 
 | # | Tarefa | Onde | Observação |
 |---|--------|------|------------|
@@ -52,7 +55,12 @@
 | 5 | Gerar desktop portable (`npm run desktop:dist`) | Quartzo | `.exe` em `release/` |
 | 6 | Importar o vault atual (menu ⋯ → Importar pasta) | app | ignora `.obsidian/` |
 
-## Fase 2 — Quartzo dentro do Recalchi Manage (1 semana)
+## Fase 2 — Quartzo dentro do Recalchi Manage ✅ itens 1–3 (13/11/2026)
+
+No ar: `https://recalchimanage.com/quartzo/painel` (painel) e `https://recalchimanage.com/quartzo/app/`
+(app web na mesma origem → login compartilhado). Item no menu "Plataforma" e módulo próprio no `module-nav`.
+Pendente: item 4 (pipeline automático do build web).
+
 
 1. **Hospedar a versão web na mesma origem do Manage** (`https://<domínio>/quartzo/`):
    - `npm run build` no Quartzo e copiar `dist/` para `public/quartzo/` do Manage
