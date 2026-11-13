@@ -1,0 +1,32 @@
+// ============================================================================
+//  Quartzo — bloco de regras para o firebase/firestore.rules do Recalchi Manage
+//  Colar DENTRO de `match /databases/{database}/documents { ... }`,
+//  ANTES do bloco final `match /{document=**} { allow read, write: if false; }`.
+//  Usa a função isOwner(uid) que já existe nas regras do Manage.
+//
+//  Estrutura:
+//    manage/modulo/quartzo/{uid}                -> metadados do vault
+//    manage/modulo/quartzo/{uid}/notes/{noteId} -> uma nota por documento
+//
+//  Cada usuário só lê/escreve o próprio vault. Nem colaboradores nem admins
+//  (nível 3) leem notas de terceiros pelo cliente — notas são privadas.
+// ============================================================================
+
+    function quartzoValidNote() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['path', 'content', 'updatedAt', 'deleted'])
+        && d.path is string && d.path.size() > 0 && d.path.size() <= 512
+        && d.content is string && d.content.size() <= 900000
+        && d.updatedAt is number
+        && d.deleted is bool;
+    }
+
+    match /manage/modulo/quartzo/{uid} {
+      allow read, write: if isOwner(uid);
+
+      match /notes/{noteId} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid) && quartzoValidNote();
+        allow delete: if isOwner(uid);
+      }
+    }

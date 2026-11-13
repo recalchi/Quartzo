@@ -1,0 +1,38 @@
+/** Marca do Quartzo: cristal de quartzo hexagonal com facetas em gradiente. */
+export function Logo({ size = 32 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 512 512" aria-label="Quartzo" role="img">
+      <defs>
+        <linearGradient id="qz-a" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#f6e9ff" />
+          <stop offset="1" stopColor="#c9a2ff" />
+        </linearGradient>
+        <linearGradient id="qz-b" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#b98cff" />
+          <stop offset="1" stopColor="#7b4fe0" />
+        </linearGradient>
+        <linearGradient id="qz-c" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#8a5cf0" />
+          <stop offset="1" stopColor="#4a2a9e" />
+        </linearGradient>
+        <linearGradient id="qz-d" x1="1" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffd6ec" />
+          <stop offset="1" stopColor="#e58cc0" />
+        </linearGradient>
+      </defs>
+      {/* cristal secundário (rosa) */}
+      <path d="M118 300 L160 210 L204 300 L204 410 L160 448 L118 410 Z" fill="url(#qz-d)" opacity="0.9" />
+      <path d="M160 210 L204 300 L160 318 Z" fill="#fff" opacity="0.35" />
+      {/* cristal principal */}
+      <path d="M256 40 L340 170 L256 205 Z" fill="url(#qz-a)" />
+      <path d="M256 40 L172 170 L256 205 Z" fill="url(#qz-b)" />
+      <path d="M172 170 L256 205 L256 470 L172 420 Z" fill="url(#qz-c)" />
+      <path d="M340 170 L256 205 L256 470 L340 420 Z" fill="url(#qz-b)" />
+      {/* cristal terciário (direita) */}
+      <path d="M318 330 L360 250 L402 330 L402 420 L360 452 L318 420 Z" fill="url(#qz-a)" opacity="0.92" />
+      <path d="M360 250 L402 330 L360 344 Z" fill="#7b4fe0" opacity="0.35" />
+      {/* brilho */}
+      <path d="M232 92 L256 60 L256 150 Z" fill="#fff" opacity="0.55" />
+    </svg>
+  );
+}
