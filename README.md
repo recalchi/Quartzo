@@ -8,7 +8,7 @@
 
 Markdown · links entre notas · grafo · offline · sincronizado com o **Recalchi Manage**
 
-![versão](https://img.shields.io/badge/versão-0.1.0-b48cff)
+![versão](https://img.shields.io/badge/versão-0.2.0-a3a3a3)
 ![plataformas](https://img.shields.io/badge/plataformas-Web%20%7C%20Windows%20%7C%20Android-e58cc0)
 ![stack](https://img.shields.io/badge/React%2018-Vite-646cff)
 ![firebase](https://img.shields.io/badge/Firebase-Auth%20%2B%20Firestore-ffca28)
@@ -43,16 +43,24 @@ roda igual no **desktop, no navegador e no celular**, sincronizando em tempo rea
 | | |
 |---|---|
 | ✍️ **Editor Markdown** | CodeMirror 6 com títulos em destaque, busca (Ctrl+F) e autocompletar de `[[links]]` |
-| 👁️ **Leitura e lado a lado** | tabelas, callouts `> [!tip]`, tarefas clicáveis, código |
+| 🗂️ **Abas e painéis divididos** | nota de um lado, grafo do outro; Ctrl+T nova aba, Ctrl+W fecha |
+| 🕸️ **Grafo vivo** | física `d3-force` com fios elásticos, arrastar nós, zoom/pinça, foco por vizinhança |
+| 🎨 **Grupos por cor** | pinte nós por `tag:#x` ou `path:Pasta`; nós de tags e de links sem nota opcionais |
+| ⚖️ **Tamanho por conteúdo** | o nó cresce com o volume de texto e o número de conexões |
+| ✨ **Animação** | a varinha mágica faz o vault "crescer" no grafo, em ordem de criação |
+| 🔎 **Grafo local** | vizinhança da nota aberta no painel lateral, com profundidade ajustável |
 | 🔗 **Conexões** | backlinks, links sem nota (um clique cria), renomear atualiza os links |
-| 🕸️ **Grafo** | simulação de forças, zoom, arrastar e abrir notas |
-| 🗂️ **Organização** | pastas, #tags com filtro, notas fixadas, lixeira com restauração |
 | 📅 **Nota do dia** | diário com modelo de tarefas (Ctrl+D) |
 | ⚡ **Busca rápida e comandos** | Ctrl+P para abrir/criar notas, `>` para comandos |
 | ☁️ **Sync em tempo real** | Firestore + IndexedDB, funciona offline e resolve conflitos sem perder texto |
-| 🔐 **Conta Recalchi Manage** | mesmo e-mail/senha; cada usuário só acessa o próprio vault |
+| 🔐 **Conta Recalchi Manage** | mesmo login; painel em `recalchimanage.com/quartzo/painel` |
 | 📥 **Importar/Exportar** | importa uma pasta de `.md` (inclusive vaults do Obsidian) e exporta `.zip` |
-| 🌓 **Temas** | escuro e claro |
+| 🌓 **Aparência** | escuro neutro por padrão, claro ou do sistema; cor de destaque à escolha |
+
+## Por que é diferente do Obsidian
+
+Veja [**docs/DIFERENCIAIS.md**](docs/DIFERENCIAIS.md): sync incluído, versão web, login único com o
+Recalchi Manage, grafo ao lado por padrão e o roadmap de integração com dados de negócio.
 
 ## Plataformas
 
@@ -61,6 +69,9 @@ roda igual no **desktop, no navegador e no celular**, sincronizando em tempo rea
 | Web / PWA | `npm run build` | `dist/` (instalável pelo navegador) |
 | Windows | `npm run desktop:dist` | `release/Quartzo-x.y.z-portable.exe` |
 | Android | `npm run android:apk` | `release/Quartzo-x.y.z-debug.apk` |
+| Dentro do Manage | build web copiado para `public/quartzo/app` | `recalchimanage.com/quartzo/app/` |
+
+**Downloads:** [última versão](https://github.com/recalchi/Quartzo/releases/latest) — `Quartzo-android.apk` e `Quartzo-windows-portable.exe`.
 
 ## Começando
 
@@ -119,7 +130,9 @@ CI/CD e Play Store) está em [**docs/PLANO_INTEGRACAO.md**](docs/PLANO_INTEGRACA
 | Abrir nota / comandos | Ctrl/⌘ + P |
 | Edição ↔ leitura | Ctrl/⌘ + E |
 | Nota do dia | Ctrl/⌘ + D |
-| Grafo | Ctrl/⌘ + G |
+| Grafo ao lado | Ctrl/⌘ + G |
+| Nova aba / fechar aba | Ctrl/⌘ + T / W |
+| Configurações | Ctrl/⌘ + , |
 | Painel lateral | Ctrl/⌘ + \ |
 
 ## Autor

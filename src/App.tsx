@@ -31,6 +31,9 @@ interface Layout { panes: Pane[]; focused: number }
 
 const isMobile = () => window.matchMedia('(max-width: 820px)').matches;
 const tabKey = () => Math.random().toString(36).slice(2, 10);
+/** modo padrão das notas: leitura no celular, edição no desktop (cada um lembra a última escolha) */
+const modeKey = () => (isMobile() ? 'quartzo.mode.mobile' : 'quartzo.mode');
+const defaultMode = (): Mode => (safeGet(modeKey()) as Mode) || (isMobile() ? 'preview' : 'edit');
 
 export default function App() {
   const api = useAuth();
@@ -135,7 +138,7 @@ function Shell({ account, onLogout, sync, engine }: {
       const empty = panes.every((p) => !p.tabs.length);
       if (empty && notes.length) {
         const recent = byId.get(safeGet('quartzo.active') ?? '') ?? [...notes].sort((a, b) => b.updatedAt - a.updatedAt)[0];
-        const t: Tab = { key: tabKey(), kind: 'note', id: recent.id, mode: (safeGet('quartzo.mode') as Mode) || 'edit', back: [] };
+        const t: Tab = { key: tabKey(), kind: 'note', id: recent.id, mode: defaultMode(), back: [] };
         return { panes: [{ tabs: [t], active: t.key }], focused: 0 };
       }
       const nonEmpty = panes.filter((p) => p.tabs.length);
@@ -172,7 +175,7 @@ function Shell({ account, onLogout, sync, engine }: {
       else if (!opts.newTab && cur?.kind === 'note') {
         next = { ...pane, tabs: pane.tabs.map((t) => (t === cur ? { ...cur, id, back: [...cur.back.slice(-30), cur.id] } : t)) };
       } else {
-        const t: Tab = { key: tabKey(), kind: 'note', id, mode: (safeGet('quartzo.mode') as Mode) || 'edit', back: [] };
+        const t: Tab = { key: tabKey(), kind: 'note', id, mode: defaultMode(), back: [] };
         next = { tabs: [...pane.tabs, t], active: t.key };
       }
       return { panes: l.panes.map((p, i) => (i === pi ? next : p)), focused: pi };
@@ -270,7 +273,7 @@ function Shell({ account, onLogout, sync, engine }: {
   };
 
   const setMode = (pi: number, key: string, mode: Mode) => {
-    safeSet('quartzo.mode', mode);
+    safeSet(modeKey(), mode);
     updatePane(pi, (p) => ({ ...p, tabs: p.tabs.map((t) => (t.key === key && t.kind === 'note' ? { ...t, mode } : t)) }));
   };
 
