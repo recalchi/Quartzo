@@ -1,5 +1,5 @@
 import {
-  GoogleAuthProvider, getAdditionalUserInfo, signInWithCustomToken, signInWithPopup, signInWithRedirect,
+  GoogleAuthProvider, getAdditionalUserInfo, signInWithCredential, signInWithPopup, signInWithRedirect,
   type User, type UserCredential,
 } from 'firebase/auth';
 import { auth, MANAGE_URL } from './firebase';
@@ -37,10 +37,18 @@ function provider(hint?: string, chooseAccount = false) {
 
 export const REDIRECT_FLAG = 'quartzo.googleRedirect';
 
+/** Credencial do Google do último login neste navegador (usada para conectar um app). */
+let lastGoogle: { idToken: string; email: string | null; at: number } | null = null;
+export function keepGoogleCredential(cred: UserCredential) {
+  const idToken = GoogleAuthProvider.credentialFromResult(cred)?.idToken;
+  if (idToken) lastGoogle = { idToken, email: cred.user.email, at: Date.now() };
+}
+
 export async function googlePopup(hint?: string, chooseAccount = false): Promise<{ cred: UserCredential; isNew: boolean } | null> {
   if (!auth) throw new Error('Firebase não configurado neste build.');
   try {
     const cred = await signInWithPopup(auth, provider(hint, chooseAccount));
+    keepGoogleCredential(cred);
     return { cred, isNew: !!getAdditionalUserInfo(cred)?.isNewUser };
   } catch (e) {
     const code = (e as { code?: string }).code;
@@ -90,8 +98,9 @@ export async function startHandoff(hint?: string): Promise<Handoff> {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verifier }), signal,
         });
         if (res.status === 200) {
-          const data = await res.json() as { customToken: string; email: string | null };
-          await signInWithCustomToken(auth!, data.customToken);
+          const data = await res.json() as { credential: string; email: string | null };
+          // a credencial do Google funciona no Electron e no WebView (sem popup)
+          await signInWithCredential(auth!, GoogleAuthProvider.credential(data.credential));
           return data.email;
         }
       } catch (e) {
@@ -107,13 +116,28 @@ export async function startHandoff(hint?: string): Promise<Handoff> {
   return { code: handoffCode(challenge), url, reopen, wait };
 }
 
-/** Navegador: entrega a sessão Google ao app que pediu (depois da confirmação do usuário). */
+/**
+ * Navegador: entrega ao app que pediu a credencial do Google (depois da confirmação do usuário).
+ * Se o login no navegador não foi agora com Google, pede o Google de novo (popup) para obtê-la.
+ */
 export async function sendHandoff(user: User, challenge: string): Promise<void> {
-  const idToken = await user.getIdToken(true);
+  const fresh = lastGoogle && Date.now() - lastGoogle.at < 30 * 60_000
+    && (!user.email || lastGoogle.email?.toLowerCase() === user.email.toLowerCase());
+  let idToken = fresh ? lastGoogle!.idToken : null;
+  if (!idToken) {
+    if (!auth) throw new Error('Firebase não configurado.');
+    const cred = await signInWithPopup(auth, provider(user.email ?? undefined));
+    if (user.email && cred.user.email?.toLowerCase() !== user.email.toLowerCase()) {
+      throw new Error(`Você escolheu ${cred.user.email} no Google. Confirme com ${user.email} ou use “Usar outra conta”.`);
+    }
+    keepGoogleCredential(cred);
+    idToken = lastGoogle?.idToken ?? null;
+    if (!idToken) throw new Error('O Google não devolveu a credencial. Tente de novo.');
+  }
   const res = await fetch('/api/quartzo/auth/handoff', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ challenge }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ challenge, credential: idToken }),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({})) as { erro?: string };

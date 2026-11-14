@@ -11,7 +11,7 @@ import {
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db, firebaseConfigured, vaultPath } from '../lib/firebase';
 import {
-  REDIRECT_FLAG, getLastAccount, googlePopup, isNativeApp, rememberAccount, startHandoff, type Handoff,
+  REDIRECT_FLAG, getLastAccount, googlePopup, isNativeApp, keepGoogleCredential, rememberAccount, startHandoff, type Handoff,
 } from '../lib/googleAuth';
 
 /**
@@ -79,7 +79,7 @@ export function useAuth() {
       holding.current = true;
       sessionStorage.removeItem(REDIRECT_FLAG);
       getRedirectResult(auth).then((cred) => {
-        if (cred) decide(cred.user, !!getAdditionalUserInfo(cred)?.isNewUser);
+        if (cred) { keepGoogleCredential(cred); decide(cred.user, !!getAdditionalUserInfo(cred)?.isNewUser); }
         else holding.current = false;
       }).catch(() => { holding.current = false; });
     }
