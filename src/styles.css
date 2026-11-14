@@ -454,3 +454,4 @@ input { font: inherit; color: inherit; }
 .graph-count { position: absolute; left: 12px; bottom: 10px; font-size: 11px; color: var(--faint); pointer-events: auto; }
 .link-btn { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 11px; padding: 0 0 0 4px; text-decoration: underline dotted; }
 .link-btn:hover { color: var(--text); }
+.graph-count .link-btn:last-child { color: var(--accent); }

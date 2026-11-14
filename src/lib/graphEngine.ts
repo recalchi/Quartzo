@@ -97,6 +97,10 @@ export class GraphEngine {
   }
   settings: GraphSettings;
   onOpen: (id: string, newTab: boolean) => void = () => {};
+  /** avisa quantos nós de nota estão fora da área visível */
+  onOffscreen: (count: number) => void = () => {};
+  private lastOff = -1;
+  private offCheck = 0;
 
   constructor(private canvas: HTMLCanvasElement, settings: GraphSettings) {
     this.ctx = canvas.getContext('2d')!;
@@ -181,7 +185,9 @@ export class GraphEngine {
     this.sim.nodes(this.nodes);
     (this.sim.force('link') as ReturnType<typeof forceLink<GNode, GLink>>).links(this.links);
     this.sim.alpha(first ? 1 : 0.5).restart();
-    if (first) { this.fitted = false; this.userMoved = false; }
+    // nota nova entrou: volta a enquadrar tudo para ela não nascer fora da tela
+    const added = !first && data.nodes.some((n) => !old.has(n.id));
+    if (first || added) { if (first) this.fitted = false; this.userMoved = false; }
   }
 
   applyForces() {
@@ -289,6 +295,19 @@ export class GraphEngine {
       }
     }
     this.draw();
+    // conta nós de nota fora da tela (a cada ~400 ms)
+    const t = performance.now();
+    if (t - this.offCheck > 400) {
+      this.offCheck = t;
+      let off = 0;
+      for (const n of this.nodes) {
+        if (n.kind !== 'note' || n.x === undefined) continue;
+        const sx = this.w / 2 + this.tx + n.x * this.scale;
+        const sy = this.h / 2 + this.ty + n.y! * this.scale;
+        if (sx < -4 || sy < -4 || sx > this.w + 4 || sy > this.h + 4) off++;
+      }
+      if (off !== this.lastOff) { this.lastOff = off; this.onOffscreen(off); }
+    }
   };
 
   private draw() {

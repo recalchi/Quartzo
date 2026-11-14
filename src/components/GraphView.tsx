@@ -119,6 +119,7 @@ export function GraphView({ notes, index, activeId, onOpen, local = false }: Pro
   const settings = useSettings();
   const g = settings.graph;
   const [panel, setPanel] = useState(false);
+  const [offscreen, setOffscreen] = useState(0);
 
   const data = useMemo(
     () => buildGraphData(notes, index, g, local ? { center: activeId, depth: settings.localGraphDepth } : null),
@@ -129,6 +130,7 @@ export function GraphView({ notes, index, activeId, onOpen, local = false }: Pro
 
   useEffect(() => {
     const e = new GraphEngine(canvas.current!, g);
+    e.onOffscreen = setOffscreen;
     engine.current = e;
     return () => e.destroy();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -174,6 +176,11 @@ export function GraphView({ notes, index, activeId, onOpen, local = false }: Pro
             {hidden > 0 && (
               <button className="link-btn" title="Mostrar todas" onClick={() => setGraph({ showOrphans: true, search: '' })}>
                 · {hidden} oculta{hidden > 1 ? 's' : ''} pelos filtros{!g.showOrphans ? ' (órfãs desligadas)' : ''} — mostrar
+              </button>
+            )}
+            {offscreen > 0 && (
+              <button className="link-btn" title="Enquadrar todas as notas" onClick={() => engine.current?.fit()}>
+                · {offscreen} fora da tela — centralizar
               </button>
             )}
           </div>

@@ -8,7 +8,7 @@
 
 Markdown · links entre notas · grafo · offline · sincronizado com o **Recalchi Manage**
 
-![versão](https://img.shields.io/badge/versão-0.3.0-a3a3a3)
+![versão](https://img.shields.io/badge/versão-0.3.1-a3a3a3)
 ![plataformas](https://img.shields.io/badge/plataformas-Web%20%7C%20Windows%20%7C%20Android-e58cc0)
 ![stack](https://img.shields.io/badge/React%2018-Vite-646cff)
 ![firebase](https://img.shields.io/badge/Firebase-Auth%20%2B%20Firestore-ffca28)
