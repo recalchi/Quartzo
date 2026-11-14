@@ -10,13 +10,23 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 
 const env = import.meta.env;
 const SAME_ORIGIN_AUTH = ['recalchimanage.com', 'www.recalchimanage.com'];
+function selfAuthOptIn(): boolean {
+  try {
+    const q = new URLSearchParams(location.search).get('auth');
+    if (q === 'self') localStorage.setItem('quartzo.authSelf', '1');
+    if (q === 'firebase') localStorage.removeItem('quartzo.authSelf');
+    return localStorage.getItem('quartzo.authSelf') === '1';
+  } catch { return false; }
+}
 
 const config = {
   apiKey: env.VITE_FIREBASE_API_KEY,
   // No recalchimanage.com o login do Google passa pelo próprio domínio (o Manage
   // encaminha /__/auth/* ao Firebase); sem isso, navegadores de celular perdem o
   // retorno do popup ("login cancelado").
-  authDomain: SAME_ORIGIN_AUTH.includes(location.hostname) ? location.host : env.VITE_FIREBASE_AUTH_DOMAIN,
+  // Por ora só com ?auth=self (ou localStorage quartzo.authSelf=1), enquanto o Google
+  // propaga o redirect_uri https://recalchimanage.com/__/auth/handler.
+  authDomain: SAME_ORIGIN_AUTH.includes(location.hostname) && selfAuthOptIn() ? location.host : env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID,
