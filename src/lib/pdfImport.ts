@@ -52,6 +52,14 @@ export async function readPdfLines(file: File): Promise<PdfLine[]> {
   } finally {
     await doc.destroy();
   }
+  // títulos sem negrito: linha curta "com cara de nome" logo antes de um e-mail/login
+  for (let i = 1; i < out.length; i++) {
+    const l = out[i];
+    const next = out[i + 1]?.text ?? '';
+    if (!l.title && looksLikeTitle(l.text) && !/[:=]|\.\w{2,}$/.test(l.text) && l.text.length <= 28
+      && (/@/.test(next) || /^(login|senha|usu[aá]rio|user|e-?mail|cpf)\b/i.test(next))
+      && !/^(login|senha|usu[aá]rio|user|e-?mail|conta|cpf|pin)\b/i.test(l.text)) l.title = true;
+  }
   return out;
 }
 
