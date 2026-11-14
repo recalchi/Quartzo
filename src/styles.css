@@ -504,3 +504,6 @@ input { font: inherit; color: inherit; }
 .import-line.title { color: var(--text); background: color-mix(in srgb, var(--accent) 14%, transparent); margin-top: 4px; }
 .import-line span { overflow-wrap: anywhere; }
 .import-line .b { font-weight: 700; }
+
+/* nota aberta pelo grafo: o voltar leva de volta ao grafo */
+.icon-btn.back-graph { width: auto; padding: 0 10px; font-size: 13px; color: var(--accent, #a78bfa); border: 1px solid currentColor; border-radius: 999px; }

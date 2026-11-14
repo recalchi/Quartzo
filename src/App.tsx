@@ -32,7 +32,7 @@ import { getSettings, setSettings, setTagColor, tagColor, useSettings } from './
 
 type Mode = 'edit' | 'preview' | 'split';
 type Tab =
-  | { key: string; kind: 'note'; id: string; mode: Mode; back: string[] }
+  | { key: string; kind: 'note'; id: string; mode: Mode; back: string[]; fromGraph?: string }
   | { key: string; kind: 'graph' }
   | { key: string; kind: 'trash' }
   | { key: string; kind: 'settings' };
@@ -240,8 +240,18 @@ function Shell({ space, vault, vaults, onSwitchVault, account, onLogout, sync, e
       const pane = l.panes[pi];
       const cur = pane.tabs.find((t) => t.key === pane.active);
       const existing = pane.tabs.find((t) => t.kind === 'note' && t.id === id);
+      // tocou numa bolinha do grafo no mesmo painel (celular): abre numa aba que lembra o grafo,
+      // reaproveitando a aba aberta pelo grafo antes, para não acumular abas
+      const graphKey = opts.fromGraph && cur?.kind === 'graph' ? cur.key : null;
+      const fromGraphTab = graphKey ? pane.tabs.find((t) => t.kind === 'note' && t.fromGraph === graphKey) : undefined;
       let next: Pane;
-      if (existing) next = { ...pane, active: existing.key };
+      if (existing) next = { ...pane, active: existing.key, tabs: graphKey && existing.kind === 'note' ? pane.tabs.map((t) => (t === existing ? { ...existing, fromGraph: graphKey } : t)) : pane.tabs };
+      else if (fromGraphTab && fromGraphTab.kind === 'note') {
+        next = { ...pane, active: fromGraphTab.key, tabs: pane.tabs.map((t) => (t === fromGraphTab ? { ...fromGraphTab, id, back: [] } : t)) };
+      } else if (graphKey) {
+        const t: Tab = { key: tabKey(), kind: 'note', id, mode: defaultMode(), back: [], fromGraph: graphKey };
+        next = { tabs: [...pane.tabs, t], active: t.key };
+      }
       else if (!opts.newTab && cur?.kind === 'note') {
         next = { ...pane, tabs: pane.tabs.map((t) => (t === cur ? { ...cur, id, back: [...cur.back.slice(-30), cur.id] } : t)) };
       } else {
@@ -253,7 +263,11 @@ function Shell({ space, vault, vaults, onSwitchVault, account, onLogout, sync, e
     if (isMobile()) setSidebar(false);
   }, []);
 
+  /** a nota foi aberta pelo grafo e não tem histórico: "voltar" leva ao grafo */
+  const backToGraph = focusedTab?.kind === 'note' && !focusedTab.back.length && focusedTab.fromGraph
+    && focusedPane.tabs.some((t) => t.key === focusedTab.fromGraph) ? focusedTab.fromGraph : null;
   const back = () => {
+    if (backToGraph) { updatePane(layout.focused, (p) => ({ ...p, active: backToGraph })); return; }
     if (focusedTab?.kind !== 'note' || !focusedTab.back.length) return;
     const prev = focusedTab.back[focusedTab.back.length - 1];
     updatePane(layout.focused, (p) => ({
@@ -535,7 +549,7 @@ function Shell({ space, vault, vaults, onSwitchVault, account, onLogout, sync, e
       CapApp.addListener('backButton', () => {
         if (switcher) setSwitcher(false);
         else if (sidebar && isMobile()) setSidebar(false);
-        else if (focusedTab?.kind === 'note' && focusedTab.back.length) back();
+        else if (backToGraph || (focusedTab?.kind === 'note' && focusedTab.back.length)) back();
         else if (focusedTab && focusedPane.tabs.length > 1) closeTab(layout.focused, focusedTab.key);
         else void CapApp.minimizeApp();
       }).then((h) => (remove = () => void h.remove()));
@@ -607,7 +621,7 @@ function Shell({ space, vault, vaults, onSwitchVault, account, onLogout, sync, e
       <header className="topbar">
         <button className="icon-btn" title="Painel lateral (Ctrl+\)" onClick={() => setSidebar((s) => !s)}>☰</button>
         <div className="brand"><Logo size={20} /><span>Quartzo</span></div>
-        <button className="icon-btn" title="Voltar" disabled={focusedTab?.kind !== 'note' || !focusedTab.back.length} onClick={back}>←</button>
+        <button className={`icon-btn${backToGraph ? ' back-graph' : ''}`} title={backToGraph ? 'Voltar ao grafo' : 'Voltar'} disabled={!backToGraph && (focusedTab?.kind !== 'note' || !focusedTab.back.length)} onClick={back}>{backToGraph ? '← Grafo' : '←'}</button>
         <button className="search-pill" onClick={() => setSwitcher(true)}>⌕ <span>Buscar ou criar nota</span><kbd>Ctrl P</kbd></button>
         <div className="spacer" />
         <SyncBadge state={sync.s} detail={sync.d} />

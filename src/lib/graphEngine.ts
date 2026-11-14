@@ -78,6 +78,8 @@ export class GraphEngine {
   private dragMoved = false;
   private pan: { x: number; y: number; tx: number; ty: number } | null = null;
   private pointers = new Map<number, { x: number; y: number }>();
+  /** onde o toque/clique começou (tela), para distinguir toque de arrasto */
+  private downAt: { x: number; y: number; t: number; touch: boolean } | null = null;
   private pinch: { d: number; scale: number } | null = null;
   private raf = 0;
   private palette!: Palette;
@@ -429,12 +431,12 @@ export class GraphEngine {
     return { x: (px - this.w / 2 - this.tx) / this.scale, y: (py - this.h / 2 - this.ty) / this.scale };
   }
 
-  private pick(px: number, py: number): GNode | null {
+  private pick(px: number, py: number, slopPx = 4): GNode | null {
     const p = this.toWorld(px, py);
     let best: GNode | null = null;
     let bestD = Infinity;
     for (const n of this.nodes) {
-      const r = n.radius * this.settings.nodeSize + 4 / this.scale;
+      const r = n.radius * this.settings.nodeSize + slopPx / this.scale;
       const d = (n.x! - p.x) ** 2 + (n.y! - p.y) ** 2;
       if (d < r * r && d < bestD) { best = n; bestD = d; }
     }
@@ -449,7 +451,7 @@ export class GraphEngine {
   private onDown = (e: PointerEvent) => {
     const p = this.pos(e);
     this.pointers.set(e.pointerId, p);
-    this.canvas.setPointerCapture(e.pointerId);
+    try { this.canvas.setPointerCapture(e.pointerId); } catch { /* ponteiro já liberado */ }
     if (this.pointers.size === 2) {
       const [a, b] = [...this.pointers.values()];
       this.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), scale: this.scale };
@@ -457,7 +459,10 @@ export class GraphEngine {
       this.pan = null;
       return;
     }
-    const hit = this.pick(p.x, p.y);
+    const touch = e.pointerType !== 'mouse';
+    this.downAt = { x: p.x, y: p.y, t: performance.now(), touch };
+    // dedo é menos preciso que o mouse: área de toque maior
+    const hit = this.pick(p.x, p.y, touch ? 18 : 4);
     this.dragMoved = false;
     if (hit) {
       this.drag = hit;
@@ -480,7 +485,10 @@ export class GraphEngine {
     }
     if (this.drag) {
       const w = this.toWorld(p.x, p.y);
-      if (Math.hypot(w.x - this.drag.x!, w.y - this.drag.y!) > 2 / this.scale) this.dragMoved = true;
+      // só vira arrasto depois de mexer de verdade (o dedo sempre treme alguns pixels)
+      const tol = this.downAt?.touch ? 10 : 4;
+      if (!this.dragMoved && this.downAt && Math.hypot(p.x - this.downAt.x, p.y - this.downAt.y) <= tol) return;
+      this.dragMoved = true;
       this.drag.fx = w.x;
       this.drag.fy = w.y;
     } else if (this.pan) {
@@ -499,6 +507,7 @@ export class GraphEngine {
     if (this.drag) {
       const n = this.drag;
       if (!this.dragMoved && n.kind === 'note') this.onOpen(n.id, e.ctrlKey || e.metaKey);
+      this.downAt = null;
       // solta o nó: ele volta a "flutuar" preso aos fios
       n.fx = null;
       n.fy = null;
