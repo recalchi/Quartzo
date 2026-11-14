@@ -5,8 +5,9 @@ import { extractTags } from '../lib/links';
 import { normalizeKey, titleOf } from '../lib/notes';
 import { GraphEngine, type GraphData } from '../lib/graphEngine';
 import {
-  DEFAULT_GRAPH, GROUP_COLORS, setGraph, setSettings, useSettings, type GraphGroup, type GraphSettings,
+  DEFAULT_GRAPH, GROUP_COLORS, setGraph, setSettings, setTagColor, tagColor, useSettings, type GraphGroup, type GraphSettings,
 } from '../lib/settings';
+import { pickColor } from './Overlays';
 
 interface Props {
   notes: Note[];
@@ -74,8 +75,7 @@ export function buildGraphData(notes: Note[], index: VaultIndex, g: GraphSetting
         if (!ids.has(id)) {
           ids.add(id);
           const count = index.tags.get(t)?.length ?? 1;
-          const group = g.groups.find((gr) => gr.query.replace(/^tag:/, '').replace(/^#/, '').toLowerCase() === t.toLowerCase());
-          nodes.push({ id, kind: 'tag', label: `#${t}`, radius: Math.min(14, 3 + Math.sqrt(count) * 2), color: group?.color ?? null, createdAt: 0 });
+          nodes.push({ id, kind: 'tag', label: `#${t}`, radius: Math.min(14, 3 + Math.sqrt(count) * 2), color: tagColor(t, g.groups), createdAt: 0 });
         }
         links.push({ source: n.id, target: id });
       }
@@ -150,7 +150,9 @@ export function GraphView({ notes, index, activeId, onOpen, local = false }: Pro
     e.refreshPalette();
   }, [g, settings.accent, settings.theme]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const topTags = useMemo(() => [...index.tags.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 8).map(([t]) => t), [index]);
+  const allTags = useMemo(() => [...index.tags.entries()].sort((a, b) => b[1].length - a[1].length), [index]);
+  const topTags = allTags.slice(0, 8).map(([t]) => t);
+  const [tagQuery, setTagQuery] = useState('');
 
   const addGroup = (query = '') => {
     const color = GROUP_COLORS[g.groups.length % GROUP_COLORS.length];
@@ -163,6 +165,20 @@ export function GraphView({ notes, index, activeId, onOpen, local = false }: Pro
   return (
     <div className={`graph-pane${local ? ' local' : ''}`}>
       <canvas ref={canvas} />
+      {!local && (() => {
+        const shown = data.nodes.filter((n) => n.kind === 'note').length;
+        const hidden = notes.length - shown;
+        return (
+          <div className="graph-count">
+            {shown} {shown === 1 ? 'nota' : 'notas'}
+            {hidden > 0 && (
+              <button className="link-btn" title="Mostrar todas" onClick={() => setGraph({ showOrphans: true, search: '' })}>
+                · {hidden} oculta{hidden > 1 ? 's' : ''} pelos filtros{!g.showOrphans ? ' (órfãs desligadas)' : ''} — mostrar
+              </button>
+            )}
+          </div>
+        );
+      })()}
       <div className="graph-tools">
         <button className="icon-btn" title="Animar crescimento do vault" onClick={() => engine.current?.animate()}>✨</button>
         <button className="icon-btn" title="Centralizar" onClick={() => engine.current?.fit()}>⤢</button>
@@ -200,6 +216,18 @@ export function GraphView({ notes, index, activeId, onOpen, local = false }: Pro
               </div>
             )}
           </Section>
+          <Section title="Cores" open>
+            <ColorRow label="Bolinhas das notas" value={g.nodeColor} onChange={(c) => setGraph({ nodeColor: c })} />
+            <ColorRow label="Bolinhas das tags" value={g.tagNodeColor} onChange={(c) => setGraph({ tagNodeColor: c })} />
+            <div className="gs-sub">Cor por tag <small>(pinta as notas com a tag)</small></div>
+            {allTags.length > 8 && <input className="gs-input" placeholder="Filtrar tags…" value={tagQuery} onChange={(e) => setTagQuery(e.target.value)} />}
+            <div className="gs-tags">
+              {allTags.filter(([t]) => !tagQuery || t.toLowerCase().includes(tagQuery.toLowerCase().replace(/^#/, ''))).slice(0, 60).map(([t, ids]) => (
+                <ColorRow key={t} label={`#${t}`} count={ids.length} value={tagColor(t, g.groups)} onChange={(c) => setTagColor(t, c)} />
+              ))}
+              {!allTags.length && <p className="muted small">Nenhuma tag ainda — escreva #tag numa nota.</p>}
+            </div>
+          </Section>
           <Section title="Exibição">
             <Toggle label="Setas" value={g.arrows} onChange={(v) => setGraph({ arrows: v })} />
             <Slider label="Limite para texto" min={0.2} max={2} step={0.05} value={g.textFadeThreshold} onChange={(v) => setGraph({ textFadeThreshold: v })} />
@@ -225,6 +253,16 @@ function Section({ title, open = false, children }: { title: string; open?: bool
       <summary>{title}</summary>
       <div className="gs-body">{children}</div>
     </details>
+  );
+}
+
+function ColorRow({ label, value, count, onChange }: { label: string; value: string | null; count?: number; onChange: (c: string | null) => void }) {
+  return (
+    <div className="gs-row color-row">
+      <span>{label}{count !== undefined && <small> {count}</small>}</span>
+      <button type="button" className={`swatch sm${value ? '' : ' empty'}`} style={value ? { background: value } : undefined} title={value ? 'Trocar cor' : 'Definir cor'}
+        onClick={async (e) => { const c = await pickColor(e, label, value); if (c !== undefined) onChange(c); }} />
+    </div>
   );
 }
 

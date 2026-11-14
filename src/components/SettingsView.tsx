@@ -1,6 +1,7 @@
 import { ACCENTS, setSettings, useSettings } from '../lib/settings';
 import type { SyncState } from '../lib/sync';
 import { MANAGE_URL } from '../lib/firebase';
+import { MAIN_VAULT, type Vault } from '../lib/vaults';
 
 interface Props {
   account: string;
@@ -9,9 +10,17 @@ interface Props {
   onImport: () => void;
   onExport: () => void;
   onLogout: () => void;
+  vaults: Vault[];
+  current: string;
+  counts: Map<string, number>;
+  onSwitchVault: (id: string) => void;
+  onNewVault: () => void;
+  onImportVault: () => void;
+  onRenameVault: (v: Vault) => void;
+  onDeleteVault: (v: Vault) => void;
 }
 
-export function SettingsView({ account, sync, noteCount, onImport, onExport, onLogout }: Props) {
+export function SettingsView({ account, sync, noteCount, onImport, onExport, onLogout, vaults, current, counts, onSwitchVault, onNewVault, onImportVault, onRenameVault, onDeleteVault }: Props) {
   const s = useSettings();
   return (
     <div className="settings">
@@ -56,6 +65,29 @@ export function SettingsView({ account, sync, noteCount, onImport, onExport, onL
       </section>
 
       <section>
+        <h3>Cofres</h3>
+        <p className="muted small">Cada cofre é um conjunto separado de notas (como um vault do Obsidian): links, grafo, tags e busca
+          enxergam só o cofre aberto. Todos sincronizam com a sua conta.</p>
+        {vaults.map((v) => (
+          <div key={v.id} className={`set-row vault-row${v.id === current ? ' on' : ''}`}>
+            <div>
+              <b>🗄 {v.name}{v.id === current && <small className="badge">aberto</small>}</b>
+              <p>{counts.get(v.id) ?? 0} notas{v.id === MAIN_VAULT ? ' · cofre principal' : ''}</p>
+            </div>
+            <div className="row-btns">
+              {v.id !== current && <button className="btn small" onClick={() => onSwitchVault(v.id)}>Abrir</button>}
+              <button className="btn small ghost" onClick={() => onRenameVault(v)}>Renomear</button>
+              {v.id !== MAIN_VAULT && <button className="btn small ghost danger" onClick={() => onDeleteVault(v)}>Excluir</button>}
+            </div>
+          </div>
+        ))}
+        <div className="row-btns" style={{ marginTop: 10 }}>
+          <button className="btn small primary" onClick={onNewVault}>＋ Novo cofre</button>
+          <button className="btn small" onClick={onImportVault}>📂 Abrir pasta como cofre (vault do Obsidian)</button>
+        </div>
+      </section>
+
+      <section>
         <h3>Conta e sincronização</h3>
         <div className="set-row">
           <div>
@@ -84,7 +116,7 @@ export function SettingsView({ account, sync, noteCount, onImport, onExport, onL
         <div className="set-row">
           <div>
             <b>{noteCount} notas</b>
-            <p>Importe uma pasta de .md (inclusive um vault do Obsidian) ou exporte tudo em .zip.</p>
+            <p>No cofre aberto: importe uma pasta de .md ou exporte o cofre em .zip.</p>
           </div>
           <div className="row-btns">
             <button className="btn small" onClick={onImport}>Importar pasta</button>

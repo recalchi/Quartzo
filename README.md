@@ -8,7 +8,7 @@
 
 Markdown · links entre notas · grafo · offline · sincronizado com o **Recalchi Manage**
 
-![versão](https://img.shields.io/badge/versão-0.2.0-a3a3a3)
+![versão](https://img.shields.io/badge/versão-0.3.0-a3a3a3)
 ![plataformas](https://img.shields.io/badge/plataformas-Web%20%7C%20Windows%20%7C%20Android-e58cc0)
 ![stack](https://img.shields.io/badge/React%2018-Vite-646cff)
 ![firebase](https://img.shields.io/badge/Firebase-Auth%20%2B%20Firestore-ffca28)
@@ -42,14 +42,17 @@ roda igual no **desktop, no navegador e no celular**, sincronizando em tempo rea
 
 | | |
 |---|---|
+| 🗄️ **Cofres** | vários cofres na mesma conta (Trabalho, Pessoal…), cada um com seus links, grafo e tags; abra uma pasta do Obsidian como cofre novo |
 | ✍️ **Editor Markdown** | CodeMirror 6 com títulos em destaque, busca (Ctrl+F) e autocompletar de `[[links]]` |
+| 🖱️ **Botão direito** | no editor: recortar/copiar/colar, formatar, títulos, listas, tabela, callout, extrair seleção para nova nota; na árvore: criar, renomear, mover, duplicar, mover de cofre |
+| ↩️ **Desfazer em tudo** | Ctrl+Z/Ctrl+Y também no modo leitura (ex.: ao marcar tarefas); listas e tarefas continuam no Enter |
 | 🗂️ **Abas e painéis divididos** | nota de um lado, grafo do outro; Ctrl+T nova aba, Ctrl+W fecha |
 | 🕸️ **Grafo vivo** | física `d3-force` com fios elásticos, arrastar nós, zoom/pinça, foco por vizinhança |
-| 🎨 **Grupos por cor** | pinte nós por `tag:#x` ou `path:Pasta`; nós de tags e de links sem nota opcionais |
+| 🎨 **Cores** | cor por tag (botão direito na tag ou ⚙ → Cores do grafo), por `path:Pasta`, e cor padrão das bolinhas |
 | ⚖️ **Tamanho por conteúdo** | o nó cresce com o volume de texto e o número de conexões |
 | ✨ **Animação** | a varinha mágica faz o vault "crescer" no grafo, em ordem de criação |
 | 🔎 **Grafo local** | vizinhança da nota aberta no painel lateral, com profundidade ajustável |
-| 🔗 **Conexões** | backlinks, links sem nota (um clique cria), renomear atualiza os links |
+| 🔗 **Conexões** | `[[links]]`, `[texto](Nota.md)`, `aliases:` e `tags:` no frontmatter; backlinks, links sem nota (um clique cria), renomear atualiza os links |
 | 📅 **Nota do dia** | diário com modelo de tarefas (Ctrl+D) |
 | ⚡ **Busca rápida e comandos** | Ctrl+P para abrir/criar notas, `>` para comandos |
 | ☁️ **Sync em tempo real** | Firestore + IndexedDB, funciona offline e resolve conflitos sem perder texto |
@@ -134,6 +137,9 @@ CI/CD e Play Store) está em [**docs/PLANO_INTEGRACAO.md**](docs/PLANO_INTEGRACA
 | Nova aba / fechar aba | Ctrl/⌘ + T / W |
 | Configurações | Ctrl/⌘ + , |
 | Painel lateral | Ctrl/⌘ + \ |
+| Negrito / itálico / link | Ctrl/⌘ + B / I / K |
+| Desfazer / refazer | Ctrl/⌘ + Z / Y |
+| Colar sem formatação | Ctrl/⌘ + Shift + V |
 
 ## Autor
 

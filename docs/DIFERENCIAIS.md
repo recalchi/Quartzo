@@ -4,7 +4,7 @@ O Obsidian é a referência em notas conectadas. O Quartzo mantém o que ele faz
 (Markdown puro, `[[links]]`, backlinks, grafo com física, abas e painéis divididos) e mira
 nos pontos em que um produto **integrado a uma plataforma de gestão** consegue ir além.
 
-## Já disponível (v0.2)
+## Já disponível (v0.3)
 
 | # | Diferencial | Obsidian | Quartzo |
 |---|-------------|----------|---------|
@@ -17,6 +17,10 @@ nos pontos em que um produto **integrado a uma plataforma de gestão** consegue 
 | 7 | **Conflito sem perda** | Merge automático pode sobrescrever trechos | A versão do servidor fica na nota e a local vira uma cópia "(conflito …)" |
 | 8 | **Painel de gestão** | — | Página no Manage com nº de notas, palavras, última edição e downloads |
 | 9 | **Tema neutro + destaque livre** | Roxo por padrão | Preto/cinza por padrão; o usuário escolhe a cor de destaque |
+| 9a | **Cofres sincronizados** | Cada vault é uma pasta local; trocar de aparelho exige Sync pago | Vários cofres na mesma conta, todos sincronizados; uma pasta do Obsidian vira cofre em um clique |
+| 9b | **Desfazer no modo leitura** | Ctrl+Z só funciona dentro do editor | Ctrl+Z/Ctrl+Y desfazem também o que foi feito no modo leitura (ex.: marcar tarefas) |
+| 9c | **Nota nova sempre visível no grafo** | Nó novo pode nascer fora da área visível | Nasce no centro da tela com uma onda de destaque e o grafo segue a nota aberta |
+| 9d | **Cor por tag em um clique** | Exige criar grupo com consulta | Botão direito na tag → cor; lista de todas as tags em ⚙ → Cores |
 
 ## Próximos diferenciais (roadmap)
 

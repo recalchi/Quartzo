@@ -24,6 +24,7 @@ export interface GNode extends SimulationNodeDatum {
   focus: number; // 0..1 (esmaece quando outro nó está em foco)
   appear: number; // 0..1 (animação de entrada)
   appearAt: number; // timestamp em que começa a surgir
+  bornAt?: number; // nó recém-criado: anel de destaque por alguns segundos
 }
 
 export interface GLink extends SimulationLinkDatum<GNode> {
@@ -82,9 +83,18 @@ export class GraphEngine {
   private palette!: Palette;
   private ro: ResizeObserver;
   private fitted = false;
+  private followMoving = false;
+  private followSince = 0;
   /** enquanto o usuário não mexe no zoom/pan, o grafo se enquadra sozinho */
   private userMoved = false;
-  activeId: string | null = null;
+  private _active: string | null = null;
+  /** nota aberta: se estiver fora da tela, o grafo desliza até ela */
+  private follow: string | null = null;
+  get activeId() { return this._active; }
+  set activeId(id: string | null) {
+    if (id !== this._active) { this.follow = id; this.followSince = performance.now(); }
+    this._active = id;
+  }
   settings: GraphSettings;
   onOpen: (id: string, newTab: boolean) => void = () => {};
 
@@ -116,8 +126,8 @@ export class GraphEngine {
     const v = (n: string, d: string) => cs.getPropertyValue(n).trim() || d;
     this.palette = {
       bg: v('--graph-bg', '#1e1e1e'),
-      node: v('--graph-node', '#9a9a9a'),
-      tag: v('--graph-tag', '#6fb58a'),
+      node: this.settings.nodeColor || v('--graph-node', '#9a9a9a'),
+      tag: this.settings.tagNodeColor || v('--graph-tag', '#6fb58a'),
       missing: v('--graph-missing', '#555555'),
       line: v('--graph-line', '#3a3a3a'),
       lineHi: v('--accent', '#a3a3a3'),
@@ -133,8 +143,19 @@ export class GraphEngine {
     const old = this.byId;
     const first = old.size === 0;
     this.byId = new Map();
+    // vizinhos já posicionados: um nó novo nasce ao lado deles (ou no centro da tela)
+    const near = new Map<string, GNode>();
+    for (const l of data.links) {
+      const a = old.get(l.source), b = old.get(l.target);
+      if (a && !old.has(l.target)) near.set(l.target, a);
+      if (b && !old.has(l.source)) near.set(l.source, b);
+    }
+    const viewX = this.scale ? -this.tx / this.scale : 0;
+    const viewY = this.scale ? -this.ty / this.scale : 0;
     this.nodes = data.nodes.map((n) => {
       const prev = old.get(n.id);
+      const anchor = near.get(n.id);
+      const spread = first ? 80 : 40 / Math.max(this.scale, 0.3);
       const node: GNode = prev
         ? Object.assign(prev, n)
         : {
@@ -142,8 +163,9 @@ export class GraphEngine {
             focus: 1,
             appear: 0,
             appearAt: now + (first ? Math.random() * 350 : 0),
-            x: (Math.random() - 0.5) * 80,
-            y: (Math.random() - 0.5) * 80,
+            bornAt: first ? undefined : now,
+            x: (first ? 0 : anchor?.x ?? viewX) + (Math.random() - 0.5) * spread,
+            y: (first ? 0 : anchor?.y ?? viewY) + (Math.random() - 0.5) * spread,
           };
       this.byId.set(n.id, node);
       return node;
@@ -236,6 +258,25 @@ export class GraphEngine {
 
   private loop = () => {
     this.raf = requestAnimationFrame(this.loop);
+    // segue a nota aberta quando ela sai da área visível (com zoom/pan manual)
+    if (this.follow && this.userMoved && !this.drag && !this.pan) {
+      const n = this.byId.get(this.follow);
+      // a nota pode chegar alguns instantes depois (acabou de ser criada)
+      if (!n || n.x === undefined) { if (performance.now() - this.followSince > 2500) this.follow = null; }
+      else {
+        const sx = this.w / 2 + this.tx + n.x * this.scale;
+        const sy = this.h / 2 + this.ty + n.y! * this.scale;
+        const m = 50;
+        const out = sx < m || sy < m || sx > this.w - m || sy > this.h - m;
+        if (out || this.followMoving) {
+          this.followMoving = true;
+          const gx = -n.x * this.scale, gy = -n.y! * this.scale;
+          this.tx += (gx - this.tx) * 0.12;
+          this.ty += (gy - this.ty) * 0.12;
+          if (Math.hypot(gx - this.tx, gy - this.ty) < 2) { this.follow = null; this.followMoving = false; }
+        } else this.follow = null;
+      }
+    }
     // enquadramento automático e suave enquanto o layout assenta
     if (!this.userMoved && !this.drag) {
       const t = this.fitTarget();
@@ -297,14 +338,15 @@ export class GraphEngine {
       if (isActive) {
         // halo pulsante na nota aberta
         const pulse = 1 + Math.sin(now / 450) * 0.08;
-        ctx.fillStyle = p.active;
+        ctx.fillStyle = n.color ?? p.active;
         ctx.globalAlpha = 0.18 * n.focus;
         ctx.beginPath();
         ctx.arc(n.x!, n.y!, r * 2.1 * pulse, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = n.focus;
       }
-      ctx.fillStyle = isActive ? p.active : n.color ?? (n.kind === 'tag' ? p.tag : n.kind === 'missing' ? p.missing : p.node);
+      // a cor do grupo/tag vale também para a nota aberta (destacada pelo anel e pelo halo)
+      ctx.fillStyle = n.color ?? (isActive ? p.active : n.kind === 'tag' ? p.tag : n.kind === 'missing' ? p.missing : p.node);
       if (n === this.hover || n === this.drag) ctx.fillStyle = n.color ?? p.lineHi;
       ctx.beginPath();
       ctx.arc(n.x!, n.y!, Math.max(0.5, r), 0, Math.PI * 2);
@@ -313,6 +355,20 @@ export class GraphEngine {
         ctx.strokeStyle = p.ring;
         ctx.lineWidth = 1.5 / this.scale;
         ctx.stroke();
+      }
+      // nó recém-criado: onda que se expande por ~2,5 s
+      if (n.bornAt) {
+        const t = (now - n.bornAt) / 2500;
+        if (t >= 1) n.bornAt = undefined;
+        else {
+          ctx.globalAlpha = (1 - t) * 0.7;
+          ctx.strokeStyle = n.color ?? p.lineHi;
+          ctx.lineWidth = 2 / this.scale;
+          ctx.beginPath();
+          ctx.arc(n.x!, n.y!, r + 4 + t * 26 / Math.sqrt(this.scale), 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = n.focus;
+        }
       }
     }
 

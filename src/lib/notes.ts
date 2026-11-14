@@ -1,8 +1,10 @@
 import { getDB, newId, type Note } from './db';
+import { getVault, MAIN_VAULT, vaultOf } from './vaults';
 
 export const titleOf = (path: string) => path.split('/').pop()!.replace(/\.md$/i, '');
 export const folderOf = (path: string) => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '');
-export const normalizeKey = (s: string) => s.trim().toLowerCase();
+/** Chave de comparação de títulos: ignora maiúsculas, espaços nas pontas, .md e forma Unicode (acentos NFC/NFD). */
+export const normalizeKey = (s: string) => s.normalize('NFC').trim().replace(/\.md$/i, '').replace(/\s+/g, ' ').toLowerCase();
 
 export function sanitizePath(path: string): string {
   let p = path
@@ -17,37 +19,42 @@ export function sanitizePath(path: string): string {
 }
 
 /** Garante caminho único adicionando " 1", " 2"... */
-export async function uniquePath(path: string, ignoreId?: string): Promise<string> {
+export async function uniquePath(path: string, ignoreId?: string, vault = getVault()): Promise<string> {
   const db = getDB();
   const base = sanitizePath(path).replace(/\.md$/i, '');
   let candidate = `${base}.md`;
   let i = 1;
   for (;;) {
-    const hit = await db.notes.where('path').equals(candidate).filter((n) => !n.deleted && n.id !== ignoreId).first();
+    const hit = await db.notes.where('path').equals(candidate).filter((n) => !n.deleted && n.id !== ignoreId && vaultOf(n) === vault).first();
     if (!hit) return candidate;
     candidate = `${base} ${i++}.md`;
   }
 }
 
-export async function createNote(path: string, content = ''): Promise<Note> {
+export async function createNote(path: string, content = '', vault = getVault()): Promise<Note> {
   const now = Date.now();
   const note: Note = {
     id: newId(),
-    path: await uniquePath(path),
+    path: await uniquePath(path, undefined, vault),
     content,
     createdAt: now,
     updatedAt: now,
     deleted: 0,
     synced: 0,
     remoteUpdatedAt: 0,
+    ...(vault !== MAIN_VAULT ? { vault } : {}),
   };
   await getDB().notes.add(note);
   return note;
 }
 
-export async function updateNote(id: string, patch: Partial<Pick<Note, 'content' | 'path' | 'pinned'>>) {
+export async function updateNote(id: string, patch: Partial<Pick<Note, 'content' | 'path' | 'pinned' | 'vault'>>) {
   const db = getDB();
-  if (patch.path) patch.path = await uniquePath(patch.path, id);
+  const cur = await db.notes.get(id);
+  const vault = patch.vault ?? (cur ? vaultOf(cur) : getVault());
+  if (patch.path || patch.vault) patch.path = await uniquePath(patch.path ?? cur?.path ?? 'Sem título', id, vault);
+  // cofre principal = campo ausente (Dexie remove a chave quando o valor é undefined)
+  if (patch.vault === MAIN_VAULT) patch.vault = undefined;
   await db.notes.update(id, { ...patch, updatedAt: Date.now(), synced: 0 });
 }
 
@@ -59,7 +66,8 @@ export async function renameNote(note: Note, newPath: string) {
   if (oldTitle === newTitle) return;
   // Atualiza [[links]] que apontavam para o título antigo
   const re = new RegExp(`\\[\\[${escapeRe(oldTitle)}(\\|[^\\]]*)?\\]\\]`, 'gi');
-  const all = await getDB().notes.filter((n) => !n.deleted && re.test(n.content)).toArray();
+  const v = vaultOf(note);
+  const all = await getDB().notes.filter((n) => !n.deleted && vaultOf(n) === v && re.test(n.content)).toArray();
   for (const n of all) {
     re.lastIndex = 0;
     await updateNote(n.id, { content: n.content.replace(re, (_m, alias) => `[[${newTitle}${alias ?? ''}]]`) });
@@ -70,8 +78,36 @@ export async function deleteNote(id: string) {
   await getDB().notes.update(id, { deleted: 1, updatedAt: Date.now(), synced: 0 });
 }
 
-export async function restoreNote(id: string) {
-  await getDB().notes.update(id, { deleted: 0, updatedAt: Date.now(), synced: 0 });
+/** Restaura da lixeira; se o cofre original não existe mais, vai para o cofre aberto. */
+export async function restoreNote(id: string, intoVault?: string) {
+  const db = getDB();
+  const n = await db.notes.get(id);
+  if (!n) return;
+  const vault = intoVault ?? vaultOf(n);
+  const path = await uniquePath(n.path, id, vault);
+  await db.notes.update(id, { deleted: 0, path, vault: vault === MAIN_VAULT ? undefined : vault, updatedAt: Date.now(), synced: 0 });
+}
+
+/** Renomeia/move uma pasta inteira (todas as notas abaixo dela). */
+export async function renameFolder(from: string, to: string) {
+  const db = getDB();
+  const v = getVault();
+  const target = sanitizePath(to).replace(/\.md$/i, '');
+  const list = await db.notes.filter((n) => !n.deleted && vaultOf(n) === v && (n.path.startsWith(`${from}/`))).toArray();
+  for (const n of list) await updateNote(n.id, { path: `${target}/${n.path.slice(from.length + 1)}` });
+  return list.length;
+}
+
+/** Manda para a lixeira todas as notas de uma pasta. */
+export async function deleteFolder(folder: string) {
+  const db = getDB();
+  const v = getVault();
+  const now = Date.now();
+  return db.notes.filter((n) => !n.deleted && vaultOf(n) === v && n.path.startsWith(`${folder}/`)).modify({ deleted: 1, updatedAt: now, synced: 0 });
+}
+
+export async function duplicateNote(n: Note) {
+  return createNote(n.path.replace(/\.md$/i, ' (cópia).md'), n.content, vaultOf(n));
 }
 
 export function escapeRe(s: string) {
@@ -86,7 +122,7 @@ export function todayPath(): string {
 
 export async function openOrCreateDaily(): Promise<Note> {
   const path = todayPath();
-  const existing = await getDB().notes.where('path').equals(path).filter((n) => !n.deleted).first();
+  const existing = await getDB().notes.where('path').equals(path).filter((n) => !n.deleted && vaultOf(n) === getVault()).first();
   if (existing) return existing;
   const d = new Date();
   const header = d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });

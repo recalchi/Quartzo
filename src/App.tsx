@@ -1,24 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import type { EditorView } from '@codemirror/view';
+import { undo as cmUndo, redo as cmRedo } from '@codemirror/commands';
 import { useAuth } from './hooks/useAuth';
 import { Login } from './components/Login';
 import { Logo } from './components/Logo';
 import { Sidebar } from './components/Sidebar';
-import { Editor } from './components/Editor';
+import { Editor, type EditorActions } from './components/Editor';
 import { QuickSwitcher, type Command } from './components/QuickSwitcher';
 import { GraphView } from './components/GraphView';
 import { SettingsView } from './components/SettingsView';
+import { Overlays, askText, openMenu, pickColor, type MenuItem } from './components/Overlays';
 import { openSpace, getDB, type Note } from './lib/db';
 import {
-  createNote, deleteNote, folderOf, openOrCreateDaily, renameNote, restoreNote, seedIfEmpty, titleOf, updateNote,
+  createNote, deleteFolder, deleteNote, duplicateNote, folderOf, openOrCreateDaily, renameFolder, renameNote, restoreNote,
+  seedIfEmpty, titleOf, updateNote,
 } from './lib/notes';
+import {
+  createVault, deleteVault, DEFAULT_VAULTS, MAIN_VAULT, readVaults, renameVault, setCurrentVault, vaultOf, type Vault,
+} from './lib/vaults';
 import { buildIndex, extractHeadings, resolveLink, type VaultIndex } from './lib/links';
 import { renderMarkdown, toggleTask } from './lib/markdown';
 import { SyncEngine, type SyncState } from './lib/sync';
-import { download, exportZip, importFiles } from './lib/importExport';
+import { download, exportZip, importFiles, rootFolderName } from './lib/importExport';
 import { MANAGE_URL } from './lib/firebase';
-import { getSettings, setSettings } from './lib/settings';
+import { getSettings, setSettings, setTagColor, tagColor, useSettings } from './lib/settings';
 
 type Mode = 'edit' | 'preview' | 'split';
 type Tab =
@@ -70,18 +76,38 @@ function Workspace({ space, uid, account, onLogout }: { space: string; uid: stri
     void seedIfEmpty();
   }, [space, uid]);
 
-  return <Shell account={account} onLogout={onLogout} sync={sync} engine={engine} />;
+  // cofres: lista sincronizada + cofre aberto (lembrado por aparelho)
+  const vaults = useLiveQuery(() => readVaults().then((m) => m.list), [space], DEFAULT_VAULTS);
+  const vaultKey = `quartzo.vault.${space}`;
+  const [vaultId, setVaultId] = useState(() => safeGet(vaultKey) || MAIN_VAULT);
+  const vault = vaults.find((v) => v.id === vaultId) ?? vaults.find((v) => v.id === MAIN_VAULT) ?? DEFAULT_VAULTS[0];
+  setCurrentVault(vault.id); // antes do Shell: criar/importar já cai no cofre certo
+  const switchVault = useCallback((id: string) => { safeSet(vaultKey, id); setVaultId(id); }, [vaultKey]);
+
+  return (
+    <>
+      <Shell key={vault.id} vault={vault} vaults={vaults} onSwitchVault={switchVault}
+        account={account} onLogout={onLogout} sync={sync} engine={engine} />
+      <Overlays />
+    </>
+  );
 }
 
-function loadLayout(): Layout {
+const layoutKey = (vault: string) => (vault === MAIN_VAULT ? 'quartzo.layout' : `quartzo.layout.${vault}`);
+const activeKey = (vault: string) => (vault === MAIN_VAULT ? 'quartzo.active' : `quartzo.active.${vault}`);
+
+function loadLayout(vault: string): Layout {
   try {
-    const l = JSON.parse(localStorage.getItem('quartzo.layout') || 'null') as Layout | null;
+    const l = JSON.parse(localStorage.getItem(layoutKey(vault)) || 'null') as Layout | null;
     if (l?.panes?.length) return l;
   } catch { /* ignore */ }
   return { panes: [{ tabs: [], active: '' }], focused: 0 };
 }
 
-function Shell({ account, onLogout, sync, engine }: {
+function Shell({ vault, vaults, onSwitchVault, account, onLogout, sync, engine }: {
+  vault: Vault;
+  vaults: Vault[];
+  onSwitchVault: (id: string) => void;
   account: string;
   onLogout: () => void;
   sync: { s: SyncState; d?: string };
@@ -89,19 +115,29 @@ function Shell({ account, onLogout, sync, engine }: {
 }) {
   const db = getDB();
   const allNotes = useLiveQuery(() => db.notes.toArray(), [db], [] as Note[]);
-  const notes = useMemo(() => allNotes.filter((n) => !n.deleted), [allNotes]);
-  const trash = useMemo(() => allNotes.filter((n) => n.deleted).sort((a, b) => b.updatedAt - a.updatedAt), [allNotes]);
+  const vaultIds = useMemo(() => new Set(vaults.map((v) => v.id)), [vaults]);
+  const notes = useMemo(() => allNotes.filter((n) => !n.deleted && vaultOf(n) === vault.id), [allNotes, vault.id]);
+  // lixeira do cofre aberto + notas de cofres que foram excluídos
+  const trash = useMemo(() => allNotes.filter((n) => n.deleted && (vaultOf(n) === vault.id || !vaultIds.has(vaultOf(n))))
+    .sort((a, b) => b.updatedAt - a.updatedAt), [allNotes, vault.id, vaultIds]);
+  const counts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const n of allNotes) if (!n.deleted) m.set(vaultOf(n), (m.get(vaultOf(n)) ?? 0) + 1);
+    return m;
+  }, [allNotes]);
   const index = useMemo(() => buildIndex(notes), [notes]);
   const byId = useMemo(() => new Map(notes.map((n) => [n.id, n])), [notes]);
 
-  const [layout, setLayout] = useState<Layout>(loadLayout);
+  const [layout, setLayout] = useState<Layout>(() => loadLayout(vault.id));
   const [mobile, setMobile] = useState(isMobile);
   const [sidebar, setSidebar] = useState(() => !isMobile());
   const [panel, setPanel] = useState(() => !isMobile() && window.innerWidth > 1200);
   const [switcher, setSwitcher] = useState(false);
   const [menu, setMenu] = useState(false);
   const [filterTag, setFilterTag] = useState<string | null>(null);
-  const [lastNoteId, setLastNoteId] = useState<string | null>(() => safeGet('quartzo.active'));
+  const [lastNoteId, setLastNoteId] = useState<string | null>(() => safeGet(activeKey(vault.id)));
+  const importMode = useRef<'here' | 'new'>('here');
+  const settings = useSettings();
   const editorViews = useRef(new Map<string, EditorView>());
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -111,7 +147,7 @@ function Shell({ account, onLogout, sync, engine }: {
     mq.addEventListener('change', fn);
     return () => mq.removeEventListener('change', fn);
   }, []);
-  useEffect(() => safeSet('quartzo.layout', JSON.stringify(layout)), [layout]);
+  useEffect(() => safeSet(layoutKey(vault.id), JSON.stringify(layout)), [layout, vault.id]);
 
   const focusedPane = layout.panes[Math.min(layout.focused, layout.panes.length - 1)];
   const focusedTab = focusedPane.tabs.find((t) => t.key === focusedPane.active) ?? null;
@@ -120,7 +156,7 @@ function Shell({ account, onLogout, sync, engine }: {
   const active = activeId ? byId.get(activeId) ?? null : null;
 
   useEffect(() => {
-    if (focusedTab?.kind === 'note') { setLastNoteId(focusedTab.id); safeSet('quartzo.active', focusedTab.id); }
+    if (focusedTab?.kind === 'note') { setLastNoteId(focusedTab.id); safeSet(activeKey(vault.id), focusedTab.id); }
   }, [focusedTab]);
 
   // remove abas de notas apagadas; se não sobrar nada, abre a mais recente
@@ -137,7 +173,7 @@ function Shell({ account, onLogout, sync, engine }: {
       });
       const empty = panes.every((p) => !p.tabs.length);
       if (empty && notes.length) {
-        const recent = byId.get(safeGet('quartzo.active') ?? '') ?? [...notes].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+        const recent = byId.get(safeGet(activeKey(vault.id)) ?? '') ?? [...notes].sort((a, b) => b.updatedAt - a.updatedAt)[0];
         const t: Tab = { key: tabKey(), kind: 'note', id: recent.id, mode: defaultMode(), back: [] };
         return { panes: [{ tabs: [t], active: t.key }], focused: 0 };
       }
@@ -282,7 +318,118 @@ function Shell({ account, onLogout, sync, engine }: {
     setSettings({ theme: cur === 'light' ? 'dark' : 'light' });
   };
 
-  const exportVault = async () => download(await exportZip(), `quartzo-${new Date().toISOString().slice(0, 10)}.zip`);
+  const exportVault = async () => download(await exportZip(), `${vault.name.replace(/[^\w\- ]+/g, '') || 'quartzo'}-${new Date().toISOString().slice(0, 10)}.zip`);
+  const push = () => engine.current?.schedulePush();
+
+  const importInto = (mode: 'here' | 'new') => { importMode.current = mode; fileInput.current?.click(); };
+
+  const newVault = async () => {
+    const name = await askText('Nome do novo cofre', '', { placeholder: 'Ex.: Trabalho, Pessoal, Estudos', ok: 'Criar cofre' });
+    if (!name) return;
+    const v = await createVault(name);
+    onSwitchVault(v.id);
+  };
+  const renameCurrentVault = async (v: Vault = vault) => {
+    const name = await askText('Renomear cofre', v.name, { ok: 'Renomear' });
+    if (name) await renameVault(v.id, name);
+  };
+  const removeVault = async (v: Vault) => {
+    if (v.id === MAIN_VAULT) return;
+    const n = counts.get(v.id) ?? 0;
+    if (!confirm(`Excluir o cofre “${v.name}”? ${n} nota(s) irão para a lixeira e podem ser restauradas.`)) return;
+    await deleteVault(v.id);
+    push();
+    if (v.id === vault.id) onSwitchVault(MAIN_VAULT);
+  };
+  const vaultItems = (): MenuItem[] => [
+    ...vaults.map((v): MenuItem => ({
+      label: v.name, icon: '🗄', checked: v.id === vault.id, hint: String(counts.get(v.id) ?? 0), run: () => v.id !== vault.id && onSwitchVault(v.id),
+    })),
+    'sep',
+    { label: 'Novo cofre…', icon: '＋', run: () => void newVault() },
+    { label: 'Abrir pasta como novo cofre (ex.: vault do Obsidian)…', icon: '📂', run: () => importInto('new') },
+    'sep',
+    { label: `Renomear “${vault.name}”…`, icon: '✎', run: () => void renameCurrentVault() },
+    { label: `Excluir “${vault.name}”`, icon: '🗑', danger: true, disabled: vault.id === MAIN_VAULT, run: () => void removeVault(vault) },
+  ];
+
+  const moveTo = async (n: Note) => {
+    const folder = await askText(`Mover “${titleOf(n.path)}” para a pasta`, folderOf(n.path), { placeholder: 'Pasta/Subpasta (vazio = raiz)', ok: 'Mover' });
+    if (folder === null) return;
+    const f = folder.replace(/^\/+|\/+$/g, '');
+    await updateNote(n.id, { path: f ? `${f}/${titleOf(n.path)}` : titleOf(n.path) });
+    push();
+  };
+  const renameAsk = async (n: Note) => {
+    const t = await askText('Renomear nota', titleOf(n.path), { ok: 'Renomear' });
+    if (!t) return;
+    const f = folderOf(n.path);
+    await renameNote(n, f ? `${f}/${t}` : t);
+    push();
+  };
+  const newFolder = async (parent = '') => {
+    const name = await askText(parent ? `Nova pasta dentro de “${parent}”` : 'Nova pasta', '', { placeholder: 'Nome da pasta', ok: 'Criar' });
+    if (!name) return;
+    await create(`${parent ? `${parent}/` : ''}${name}/Sem título`);
+  };
+
+  const noteMenu = (n: Note): MenuItem[] => [
+    { label: 'Abrir', icon: '↗', run: () => open(n.id) },
+    { label: 'Abrir em nova aba', icon: '⧉', run: () => open(n.id, { newTab: true }) },
+    { label: 'Abrir ao lado', icon: '◫', disabled: mobile, run: () => splitWith({ key: tabKey(), kind: 'note', id: n.id, mode: defaultMode(), back: [] }) },
+    'sep',
+    { label: 'Nova nota na mesma pasta', icon: '＋', run: () => void create(`${folderOf(n.path) ? `${folderOf(n.path)}/` : ''}Sem título`) },
+    { label: 'Renomear…', icon: '✎', run: () => void renameAsk(n) },
+    { label: 'Mover para pasta…', icon: '📁', run: () => void moveTo(n) },
+    ...(vaults.length > 1 ? [{
+      label: 'Mover para outro cofre', icon: '🗄', submenu: vaults.filter((v) => v.id !== vault.id).map((v): MenuItem => ({
+        label: v.name, run: async () => { await updateNote(n.id, { vault: v.id }); push(); },
+      })),
+    } as MenuItem] : []),
+    { label: 'Duplicar', icon: '⎘', run: async () => { const c = await duplicateNote(n); push(); open(c.id, { newTab: true }); } },
+    { label: n.pinned ? 'Desafixar' : 'Fixar no topo', icon: n.pinned ? '★' : '☆', run: async () => { await updateNote(n.id, { pinned: n.pinned ? 0 : 1 }); push(); } },
+    { label: 'Copiar link [[ ]]', icon: '🔗', run: () => void navigator.clipboard?.writeText(`[[${titleOf(n.path)}]]`) },
+    'sep',
+    { label: 'Excluir', icon: '🗑', danger: true, run: () => void remove(n) },
+  ];
+  const folderMenu = (f: string): MenuItem[] => [
+    { label: 'Nova nota aqui', icon: '＋', run: () => void create(`${f}/Sem título`) },
+    { label: 'Nova subpasta…', icon: '📁', run: () => void newFolder(f) },
+    'sep',
+    { label: 'Renomear pasta…', icon: '✎', run: async () => {
+      const name = await askText('Renomear pasta (use / para mover)', f, { ok: 'Renomear' });
+      if (name && name !== f) { await renameFolder(f, name); push(); }
+    } },
+    { label: 'Excluir pasta', icon: '🗑', danger: true, run: async () => {
+      const n = notes.filter((x) => x.path.startsWith(`${f}/`)).length;
+      if (!confirm(`Mover a pasta “${f}” e ${n} nota(s) para a lixeira?`)) return;
+      await deleteFolder(f); push();
+    } },
+  ];
+  const rootMenu = (): MenuItem[] => [
+    { label: 'Nova nota', icon: '＋', hint: 'Ctrl+N', run: () => void create() },
+    { label: 'Nova pasta…', icon: '📁', run: () => void newFolder() },
+    { label: 'Nota do dia', icon: '📅', hint: 'Ctrl+D', run: () => void daily() },
+    'sep',
+    { label: 'Importar pasta neste cofre…', icon: '📥', run: () => importInto('here') },
+    { label: 'Abrir pasta como novo cofre…', icon: '📂', run: () => importInto('new') },
+    { label: 'Exportar cofre (.zip)', icon: '📦', run: () => void exportVault() },
+    'sep',
+    { label: 'Trocar de cofre', icon: '🗄', submenu: vaultItems() },
+  ];
+  const tagMenu = (t: string, e: React.MouseEvent): MenuItem[] => [
+    { label: filterTag === t ? 'Parar de filtrar' : `Filtrar por #${t}`, icon: '⌕', run: () => setFilterTag(filterTag === t ? null : t) },
+    { label: 'Cor da tag no grafo…', icon: '🎨', run: async () => { const c = await pickColor(e, `#${t}`, tagColor(t)); if (c !== undefined) setTagColor(t, c); } },
+    ...(tagColor(t) ? [{ label: 'Remover cor', icon: '✕', run: () => setTagColor(t, null) } as MenuItem] : []),
+  ];
+
+  /** Desfazer/refazer da nota em foco — funciona também no modo leitura. */
+  const history = (dir: 'undo' | 'redo') => {
+    if (focusedTab?.kind !== 'note') return false;
+    const v = editorViews.current.get(focusedTab.key);
+    if (!v) return false;
+    return dir === 'undo' ? cmUndo(v) : cmRedo(v);
+  };
 
   const commands: Command[] = useMemo(() => [
     { id: 'new', label: 'Nova nota', hint: 'Ctrl+N', run: () => void create() },
@@ -290,19 +437,31 @@ function Shell({ account, onLogout, sync, engine }: {
     { id: 'daily', label: 'Abrir nota do dia', hint: 'Ctrl+D', run: () => void daily() },
     { id: 'graph', label: 'Abrir grafo ao lado', hint: 'Ctrl+G', run: openGraph },
     { id: 'split', label: 'Dividir à direita (nota atual)', run: () => activeId && splitWith({ key: tabKey(), kind: 'note', id: activeId, mode: 'preview', back: [] }) },
-    { id: 'import', label: 'Importar pasta de notas (.md / vault do Obsidian)', run: () => fileInput.current?.click() },
-    { id: 'export', label: 'Exportar vault (.zip)', run: () => void exportVault() },
+    { id: 'import', label: 'Importar pasta neste cofre (.md / Obsidian)', run: () => importInto('here') },
+    { id: 'import-vault', label: 'Abrir pasta como novo cofre', run: () => importInto('new') },
+    { id: 'new-vault', label: 'Novo cofre', run: () => void newVault() },
+    ...vaults.filter((v) => v.id !== vault.id).map((v) => ({ id: `vault-${v.id}`, label: `Trocar para o cofre: ${v.name}`, run: () => onSwitchVault(v.id) })),
+    { id: 'export', label: 'Exportar cofre (.zip)', run: () => void exportVault() },
     { id: 'trash', label: 'Abrir lixeira', run: () => openSingleton('trash') },
     { id: 'settings', label: 'Configurações e aparência', run: () => openSingleton('settings') },
     { id: 'theme', label: 'Alternar tema claro/escuro', run: toggleTheme },
     { id: 'logout', label: 'Sair da conta', run: onLogout },
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [create, daily, onLogout, openGraph, activeId, splitWith]);
+  ], [create, daily, onLogout, openGraph, activeId, splitWith, vaults, vault]);
 
   // Atalhos globais (fase de captura: prioridade sobre os atalhos do editor)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey;
+      if (mod && !e.altKey && ['z', 'y'].includes(e.key.toLowerCase())) {
+        const el = document.activeElement as HTMLElement | null;
+        const typing = el && (el.closest('.cm-editor') || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+        if (!typing) {
+          const redo = e.key.toLowerCase() === 'y' || e.shiftKey;
+          if (history(redo ? 'redo' : 'undo')) { e.preventDefault(); e.stopPropagation(); }
+          return;
+        }
+      }
       if (!mod || e.shiftKey || e.altKey) return;
       const k = e.key.toLowerCase();
       const actions: Record<string, () => void> = {
@@ -373,10 +532,21 @@ function Shell({ account, onLogout, sync, engine }: {
         webkitdirectory=""
         onChange={async (e) => {
           if (!e.target.files?.length) return;
-          const n = await importFiles(e.target.files);
-          engine.current?.schedulePush();
-          alert(`${n} nota(s) importada(s).`);
+          const files = Array.from(e.target.files);
           e.target.value = '';
+          if (importMode.current === 'new') {
+            const name = await askText('Nome do novo cofre', rootFolderName(files), { ok: 'Criar e importar' });
+            if (!name) return;
+            const v = await createVault(name);
+            const n = await importFiles(files, v.id);
+            push();
+            alert(`Cofre “${v.name}” criado com ${n} nota(s).`);
+            onSwitchVault(v.id);
+          } else {
+            const n = await importFiles(files);
+            push();
+            alert(`${n} nota(s) importada(s) no cofre “${vault.name}”.`);
+          }
         }} />
 
       <header className="topbar">
@@ -395,9 +565,14 @@ function Shell({ account, onLogout, sync, engine }: {
           {menu && (
             <div className="menu" onMouseLeave={() => setMenu(false)} onClick={() => setMenu(false)}>
               <div className="menu-account">{account}</div>
+              <button className="menu-vault" onClick={(e) => { e.stopPropagation(); setMenu(false); openMenu(e, vaultItems()); }}>
+                🗄 Cofre: <b>{vault.name}</b> <small>{notes.length} notas · trocar ›</small>
+              </button>
+              <hr />
               <button onClick={() => openSingleton('settings')}>⚙ Configurações e aparência</button>
-              <button onClick={() => fileInput.current?.click()}>📥 Importar pasta (.md / Obsidian)</button>
-              <button onClick={() => void exportVault()}>📦 Exportar vault (.zip)</button>
+              <button onClick={() => importInto('here')}>📥 Importar pasta neste cofre</button>
+              <button onClick={() => importInto('new')}>📂 Abrir pasta como novo cofre</button>
+              <button onClick={() => void exportVault()}>📦 Exportar cofre (.zip)</button>
               <button onClick={() => openSingleton('trash')}>🗑 Lixeira ({trash.length})</button>
               <button onClick={toggleTheme}>◐ Alternar tema</button>
               {MANAGE_URL && <button onClick={() => window.open(MANAGE_URL, '_blank', 'noopener')}>🏢 Abrir Recalchi Manage</button>}
@@ -418,16 +593,35 @@ function Shell({ account, onLogout, sync, engine }: {
           onClearTag={() => setFilterTag(null)}
           tagIds={tagIds}
           showSync={sync.s !== 'local'}
+          onNoteMenu={(e, n) => openMenu(e, noteMenu(n))}
+          onFolderMenu={(e, f) => openMenu(e, folderMenu(f))}
+          onRootMenu={(e) => openMenu(e, rootMenu())}
+          onNewNote={() => void create()}
+          onNewFolder={() => void newFolder()}
         />
         {tagList.length > 0 && (
           <div className="tags-cloud">
-            {tagList.slice(0, 30).map(([t, ids]) => (
-              <button key={t} className={`chip${filterTag === t ? ' on' : ''}`} onClick={() => setFilterTag(filterTag === t ? null : t)}>
-                #{t} <small>{ids.length}</small>
-              </button>
-            ))}
+            {tagList.slice(0, 30).map(([t, ids]) => {
+              const c = tagColor(t, settings.graph.groups);
+              return (
+                <button key={t} className={`chip${filterTag === t ? ' on' : ''}`} title="Clique para filtrar · botão direito para cor"
+                  onClick={() => setFilterTag(filterTag === t ? null : t)}
+                  onContextMenu={(e) => { e.persist(); openMenu(e, tagMenu(t, e)); }}>
+                  {c && <i className="mini-dot" style={{ background: c }} />}#{t} <small>{ids.length}</small>
+                </button>
+              );
+            })}
           </div>
         )}
+        <div className="vault-bar">
+          <button className="vault-btn" title="Trocar de cofre" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); openMenu({ clientX: r.left, clientY: r.top - 8 }, vaultItems()); }}>
+            <span className="vault-ico">🗄</span>
+            <span className="vault-name">{vault.name}</span>
+            <small>{notes.length}</small>
+            <span className="vault-chev">⇅</span>
+          </button>
+          <button className="icon-btn tiny" title="Configurações (Ctrl+,)" onClick={() => openSingleton('settings')}>⚙</button>
+        </div>
       </aside>
       {sidebar && <div className="scrim" onClick={() => setSidebar(false)} />}
 
@@ -473,6 +667,20 @@ function Shell({ account, onLogout, sync, engine }: {
                     onEditorReady={(v) => editorViews.current.set(tab.key, v)}
                     backlinkCount={(index.backlinks.get(tab.id) ?? []).length}
                     onSaveTask={async (n, i) => { await updateNote(n.id, { content: toggleTask(n.content, i) }); engine.current?.schedulePush(); }}
+                    onHistory={(d) => { history(d); }}
+                    actions={{
+                      openLink: (t, nt) => void openLink(t, nt),
+                      search: (q) => { setSidebar(true); window.dispatchEvent(new CustomEvent('quartzo:search', { detail: q })); },
+                      extract: async (text) => {
+                        const first = text.split('\n').find((l) => l.trim())?.replace(/^#+\s*/, '').trim().slice(0, 60) || 'Nova nota';
+                        const t = await askText('Título da nova nota', first, { ok: 'Criar nota' });
+                        if (!t) return null;
+                        const f = byId.get(tab.id) ? folderOf(byId.get(tab.id)!.path) : '';
+                        const n = await createNote(f ? `${f}/${t}` : t, text);
+                        push();
+                        return titleOf(n.path);
+                      },
+                    }}
                   />
                 )}
                 {tab?.kind === 'graph' && <GraphView notes={notes} index={index} activeId={lastNoteId} onOpen={graphOpen} />}
@@ -482,15 +690,17 @@ function Shell({ account, onLogout, sync, engine }: {
                     {!trash.length && <p className="muted">A lixeira está vazia.</p>}
                     {trash.map((n) => (
                       <div key={n.id} className="trash-row">
-                        <span>{n.path}</span>
+                        <span>{n.path}{vaultOf(n) !== vault.id && <small className="muted"> · de um cofre excluído</small>}</span>
                         <small className="muted">{new Date(n.updatedAt).toLocaleString('pt-BR')}</small>
-                        <button className="btn small" onClick={async () => { await restoreNote(n.id); engine.current?.schedulePush(); open(n.id, { newTab: true }); }}>Restaurar</button>
+                        <button className="btn small" onClick={async () => { await restoreNote(n.id, vaultIds.has(vaultOf(n)) ? undefined : vault.id); engine.current?.schedulePush(); open(n.id, { newTab: true }); }}>Restaurar</button>
                       </div>
                     ))}
                   </div>
                 )}
                 {tab?.kind === 'settings' && (
-                  <SettingsView account={account} sync={sync.s} onImport={() => fileInput.current?.click()} onExport={() => void exportVault()} onLogout={onLogout} noteCount={notes.length} />
+                  <SettingsView account={account} sync={sync.s} onImport={() => importInto('here')} onExport={() => void exportVault()} onLogout={onLogout} noteCount={notes.length}
+                    vaults={vaults} current={vault.id} counts={counts} onSwitchVault={onSwitchVault} onNewVault={() => void newVault()}
+                    onImportVault={() => importInto('new')} onRenameVault={(v) => void renameCurrentVault(v)} onDeleteVault={(v) => void removeVault(v)} />
                 )}
                 {!tab && (
                   <div className="empty-state">
@@ -562,9 +772,11 @@ interface NotePaneProps {
   onTag: (t: string) => void;
   onEditorReady: (v: EditorView) => void;
   onSaveTask: (n: Note, i: number) => void;
+  onHistory: (d: 'undo' | 'redo') => void;
+  actions: EditorActions;
 }
 
-function NotePane({ note, mode, index, titles, backlinkCount, onMode, onChange, onRename, onTogglePin, onDelete, onOpenLink, onTag, onEditorReady, onSaveTask }: NotePaneProps) {
+function NotePane({ note, mode, index, titles, backlinkCount, onMode, onChange, onRename, onTogglePin, onDelete, onOpenLink, onTag, onEditorReady, onSaveTask, onHistory, actions }: NotePaneProps) {
   const html = useMemo(() => (mode !== 'edit' ? renderMarkdown(note.content, index) : ''), [note.content, mode, index]);
   const words = note.content.match(/\S+/g)?.length ?? 0;
 
@@ -583,6 +795,9 @@ function NotePane({ note, mode, index, titles, backlinkCount, onMode, onChange, 
       <div className="note-head">
         <TitleInput key={note.id + note.path} note={note} onRename={(p) => onRename(note, p)} />
         <div className="modes">
+          <button onClick={() => onHistory('undo')} title="Desfazer (Ctrl+Z)">↶</button>
+          <button onClick={() => onHistory('redo')} title="Refazer (Ctrl+Y)">↷</button>
+          <span className="modes-sep" />
           <button className={mode === 'edit' ? 'on' : ''} onClick={() => onMode('edit')} title="Edição">✎</button>
           <button className={`hide-sm${mode === 'split' ? ' on' : ''}`} onClick={() => onMode('split')} title="Edição + leitura">◧</button>
           <button className={mode === 'preview' ? 'on' : ''} onClick={() => onMode('preview')} title="Leitura (Ctrl+E)">👁</button>
@@ -591,9 +806,8 @@ function NotePane({ note, mode, index, titles, backlinkCount, onMode, onChange, 
         </div>
       </div>
       <div className={`note-body mode-${mode}`}>
-        {mode !== 'preview' && (
-          <Editor docId={note.id} value={note.content} titles={titles} onChange={(v) => onChange(note.id, v)} onReady={onEditorReady} />
-        )}
+        {/* o editor fica montado também no modo leitura: mantém o histórico do Ctrl+Z */}
+        <Editor docId={note.id} value={note.content} titles={titles} onChange={(v) => onChange(note.id, v)} onReady={onEditorReady} actions={actions} />
         {mode !== 'edit' && <article className="preview markdown" onClick={onPreviewClick} dangerouslySetInnerHTML={{ __html: html }} />}
       </div>
       <footer className="statusbar">

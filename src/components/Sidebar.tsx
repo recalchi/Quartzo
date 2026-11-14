@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Note } from '../lib/db';
 import { folderOf, titleOf } from '../lib/notes';
 
@@ -36,10 +36,21 @@ interface Props {
   onClearTag: () => void;
   tagIds: Set<string> | null;
   showSync?: boolean;
+  onNoteMenu: (e: React.MouseEvent, n: Note) => void;
+  onFolderMenu: (e: React.MouseEvent, folder: string) => void;
+  onRootMenu: (e: React.MouseEvent) => void;
+  onNewNote: () => void;
+  onNewFolder: () => void;
 }
 
-export function Sidebar({ notes, activeId, onOpen, onNewInFolder, filterTag, onClearTag, tagIds, showSync = true }: Props) {
+export function Sidebar({ notes, activeId, onOpen, onNewInFolder, filterTag, onClearTag, tagIds, showSync = true, onNoteMenu, onFolderMenu, onRootMenu, onNewNote, onNewFolder }: Props) {
   const [query, setQuery] = useState('');
+  // "Buscar seleção no cofre" (menu do editor)
+  useEffect(() => {
+    const fn = (e: Event) => setQuery(String((e as CustomEvent).detail ?? ''));
+    window.addEventListener('quartzo:search', fn);
+    return () => window.removeEventListener('quartzo:search', fn);
+  }, []);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
     try {
       return JSON.parse(localStorage.getItem('quartzo.collapsed') || '{}');
@@ -86,7 +97,8 @@ export function Sidebar({ notes, activeId, onOpen, onNewInFolder, filterTag, onC
       <>
         {folders.map((f) => (
           <div key={f.path}>
-            <div className="tree-row folder" style={{ paddingLeft: 10 + depth * 14 }} onClick={() => toggle(f.path)}>
+            <div className="tree-row folder" style={{ paddingLeft: 10 + depth * 14 }} onClick={() => toggle(f.path)}
+              onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onFolderMenu(e, f.path); }}>
               <span className="chev">{collapsed[f.path] ? '▸' : '▾'}</span>
               <span className="name">{f.name}</span>
               <button className="icon-btn tiny" title="Nova nota aqui" onClick={(e) => { e.stopPropagation(); onNewInFolder(f.path); }}>＋</button>
@@ -100,6 +112,7 @@ export function Sidebar({ notes, activeId, onOpen, onNewInFolder, filterTag, onC
             className={`tree-row file${n.id === activeId ? ' active' : ''}`}
             style={{ paddingLeft: 24 + depth * 14 }}
             onClick={() => onOpen(n.id)}
+            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onNoteMenu(e, n); }}
             title={n.path}
           >
             <span className="name">{titleOf(n.path)}</span>
@@ -112,6 +125,18 @@ export function Sidebar({ notes, activeId, onOpen, onNewInFolder, filterTag, onC
 
   return (
     <div className="sidebar-inner">
+      <div className="side-actions">
+        <button className="icon-btn tiny" title="Nova nota (Ctrl+N)" onClick={onNewNote}>＋</button>
+        <button className="icon-btn tiny" title="Nova pasta" onClick={onNewFolder}>📁</button>
+        <button className="icon-btn tiny" title="Recolher todas as pastas" onClick={() => {
+          const all: Record<string, boolean> = {};
+          for (const n of notes) { const f = folderOf(n.path); let acc = ''; for (const seg of f ? f.split('/') : []) { acc = acc ? `${acc}/${seg}` : seg; all[acc] = true; } }
+          const anyOpen = Object.keys(all).some((k) => !collapsed[k]);
+          const next = anyOpen ? all : {};
+          setCollapsed(next);
+          try { localStorage.setItem('quartzo.collapsed', JSON.stringify(next)); } catch { /* ignore */ }
+        }}>⇕</button>
+      </div>
       <div className="search">
         <input placeholder="Buscar em todas as notas…" value={query} onChange={(e) => setQuery(e.target.value)} />
         {query && <button className="icon-btn tiny" onClick={() => setQuery('')}>✕</button>}
@@ -122,7 +147,7 @@ export function Sidebar({ notes, activeId, onOpen, onNewInFolder, filterTag, onC
           <button className="icon-btn tiny" onClick={onClearTag}>✕</button>
         </div>
       )}
-      <div className="tree">
+      <div className="tree" onContextMenu={(e) => { e.preventDefault(); onRootMenu(e); }}>
         {results ? (
           results.length ? (
             results.map(({ n, snippet }) => (
@@ -140,14 +165,22 @@ export function Sidebar({ notes, activeId, onOpen, onNewInFolder, filterTag, onC
               <>
                 <div className="section-label">Fixadas</div>
                 {pinned.map((n) => (
-                  <div key={`p-${n.id}`} className={`tree-row file${n.id === activeId ? ' active' : ''}`} style={{ paddingLeft: 14 }} onClick={() => onOpen(n.id)}>
+                  <div key={`p-${n.id}`} className={`tree-row file${n.id === activeId ? ' active' : ''}`} style={{ paddingLeft: 14 }} onClick={() => onOpen(n.id)}
+                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onNoteMenu(e, n); }}>
                     <span className="name">📌 {titleOf(n.path)}</span>
                   </div>
                 ))}
-                <div className="section-label">Vault</div>
+                <div className="section-label">Notas</div>
               </>
             )}
             {renderNode(tree, 0)}
+            {!notes.length && (
+              <div className="empty">
+                Este cofre está vazio.<br />
+                <button className="btn small" style={{ marginTop: 8 }} onClick={onNewNote}>＋ Criar nota</button>
+                <div className="small muted" style={{ marginTop: 8 }}>Dica: botão direito aqui para mais opções.</div>
+              </div>
+            )}
           </>
         )}
       </div>

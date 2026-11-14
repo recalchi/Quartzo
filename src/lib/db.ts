@@ -14,6 +14,8 @@ export interface Note {
   /** updatedAt da última versão conhecida do servidor (detecção de conflito) */
   remoteUpdatedAt: number;
   pinned?: 0 | 1;
+  /** id do cofre (ausente = cofre principal) */
+  vault?: string;
 }
 
 export interface Meta {

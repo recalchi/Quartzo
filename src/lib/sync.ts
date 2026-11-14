@@ -9,6 +9,7 @@ import {
 import { db as firestore, vaultPath } from './firebase';
 import { deviceId, getDB, newId, type Note } from './db';
 import { seedIfEmpty, uniquePath } from './notes';
+import { MAIN_VAULT, onVaultsChanged, readVaults, vaultOf, writeVaults } from './vaults';
 
 export type SyncState = 'offline' | 'idle' | 'syncing' | 'error' | 'local';
 
@@ -24,6 +25,7 @@ type Listener = (s: SyncState, detail?: string) => void;
  */
 export class SyncEngine {
   private unsub: Unsubscribe | null = null;
+  private unsubRoot: Unsubscribe | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private pushing = false;
   private listeners = new Set<Listener>();
@@ -62,6 +64,20 @@ export class SyncEngine {
       { merge: true },
     ).catch(() => void 0);
 
+    // Lista de cofres: guardada no documento raiz; a versão mais nova vence.
+    const rootRef = doc(firestore, a, b, c, d);
+    onVaultsChanged((meta) => {
+      setDoc(rootRef, { vaults: meta.list, vaultsUpdatedAt: meta.updatedAt }, { merge: true }).catch((e) => this.set('error', e.message));
+    });
+    this.unsubRoot = onSnapshot(rootRef, async (snap) => {
+      if (snap.metadata.hasPendingWrites) return;
+      const data = snap.data() ?? {};
+      const local = await readVaults();
+      const remoteAt = Number(data.vaultsUpdatedAt ?? 0);
+      if (Array.isArray(data.vaults) && remoteAt > local.updatedAt) await writeVaults(data.vaults, remoteAt, true);
+      else if (local.updatedAt > remoteAt) await setDoc(rootRef, { vaults: local.list, vaultsUpdatedAt: local.updatedAt }, { merge: true });
+    }, () => void 0);
+
     this.unsub = onSnapshot(
       this.notesCol(),
       { includeMetadataChanges: false },
@@ -93,6 +109,9 @@ export class SyncEngine {
   stop() {
     this.unsub?.();
     this.unsub = null;
+    this.unsubRoot?.();
+    this.unsubRoot = null;
+    onVaultsChanged(null);
     if (this.timer) clearTimeout(this.timer);
     window.removeEventListener('online', this.handleOnline);
     window.removeEventListener('offline', this.handleOffline);
@@ -112,6 +131,7 @@ export class SyncEngine {
           updatedAt: Number(data.updatedAt ?? 0),
           deleted: (data.deleted ? 1 : 0) as 0 | 1,
           pinned: (data.pinned ? 1 : 0) as 0 | 1,
+          vault: data.vault && data.vault !== MAIN_VAULT ? String(data.vault) : undefined,
         };
         const mine = await local.notes.get(id);
         if (!mine) {
@@ -150,7 +170,7 @@ export class SyncEngine {
     try {
       for (const n of pending) {
         // garante que o caminho não colida com nota vinda de outro aparelho
-        const path = n.deleted ? n.path : await uniquePath(n.path, n.id);
+        const path = n.deleted ? n.path : await uniquePath(n.path, n.id, vaultOf(n));
         const payload = {
           path,
           content: n.content,
@@ -158,6 +178,7 @@ export class SyncEngine {
           updatedAt: n.updatedAt,
           deleted: !!n.deleted,
           pinned: !!n.pinned,
+          vault: vaultOf(n),
           device: deviceId(),
           size: n.content.length,
           serverAt: serverTimestamp(),
