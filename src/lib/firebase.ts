@@ -14,8 +14,8 @@ function selfAuthOptIn(): boolean {
   try {
     const q = new URLSearchParams(location.search).get('auth');
     if (q === 'self') localStorage.setItem('quartzo.authSelf', '1');
-    if (q === 'firebase') localStorage.removeItem('quartzo.authSelf');
-    return localStorage.getItem('quartzo.authSelf') === '1';
+    if (q === 'firebase') localStorage.setItem('quartzo.authSelf', '0');
+    return localStorage.getItem('quartzo.authSelf') !== '0';
   } catch { return false; }
 }
 
@@ -24,8 +24,7 @@ const config = {
   // No recalchimanage.com o login do Google passa pelo próprio domínio (o Manage
   // encaminha /__/auth/* ao Firebase); sem isso, navegadores de celular perdem o
   // retorno do popup ("login cancelado").
-  // Por ora só com ?auth=self (ou localStorage quartzo.authSelf=1), enquanto o Google
-  // propaga o redirect_uri https://recalchimanage.com/__/auth/handler.
+  // Padrão: login pelo próprio domínio. ?auth=firebase volta ao firebaseapp.com (ajuste por aparelho).
   authDomain: SAME_ORIGIN_AUTH.includes(location.hostname) && selfAuthOptIn() ? location.host : env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET,
