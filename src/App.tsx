@@ -5,6 +5,9 @@ import { undo as cmUndo, redo as cmRedo } from '@codemirror/commands';
 import { useAuth } from './hooks/useAuth';
 import { AccountGate, HandoffConfirm, Login } from './components/Login';
 import { readHandoffParams } from './lib/googleAuth';
+import { LockScreen, disableLock, enableLock } from './components/LockScreen';
+import { isUnlocked, lockAll, markUnlocked, onLockChange } from './lib/vaultLock';
+import { ImportPdf } from './components/ImportPdf';
 import { Logo } from './components/Logo';
 import { Sidebar } from './components/Sidebar';
 import { Editor, type EditorActions } from './components/Editor';
@@ -93,11 +96,17 @@ function Workspace({ space, uid, account, onLogout }: { space: string; uid: stri
   const vault = vaults.find((v) => v.id === vaultId) ?? vaults.find((v) => v.id === MAIN_VAULT) ?? DEFAULT_VAULTS[0];
   setCurrentVault(vault.id); // antes do Shell: criar/importar já cai no cofre certo
   const switchVault = useCallback((id: string) => { safeSet(vaultKey, id); setVaultId(id); }, [vaultKey]);
+  // cofres protegidos: tranca até autenticar com PIN/biometria do aparelho
+  const [, relock] = useState(0);
+  useEffect(() => onLockChange(() => relock((x) => x + 1)), []);
+  const locked = !!vault.lock && !isUnlocked(vault.id);
 
   return (
     <>
-      <Shell key={vault.id} vault={vault} vaults={vaults} onSwitchVault={switchVault}
-        account={account} onLogout={onLogout} sync={sync} engine={engine} />
+      {locked
+        ? <LockScreen space={space} label={account} vault={vault} vaults={vaults} onSwitch={switchVault} />
+        : <Shell key={vault.id} space={space} vault={vault} vaults={vaults} onSwitchVault={switchVault}
+            account={account} onLogout={onLogout} sync={sync} engine={engine} />}
       <Overlays />
     </>
   );
@@ -114,7 +123,8 @@ function loadLayout(vault: string): Layout {
   return { panes: [{ tabs: [], active: '' }], focused: 0 };
 }
 
-function Shell({ vault, vaults, onSwitchVault, account, onLogout, sync, engine }: {
+function Shell({ space, vault, vaults, onSwitchVault, account, onLogout, sync, engine }: {
+  space: string;
   vault: Vault;
   vaults: Vault[];
   onSwitchVault: (id: string) => void;
@@ -147,6 +157,20 @@ function Shell({ vault, vaults, onSwitchVault, account, onLogout, sync, engine }
   const [filterTag, setFilterTag] = useState<string | null>(null);
   const [lastNoteId, setLastNoteId] = useState<string | null>(() => safeGet(activeKey(vault.id)));
   const importMode = useRef<'here' | 'new'>('here');
+  const pdfInput = useRef<HTMLInputElement>(null);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const importPdf = () => pdfInput.current?.click();
+  // arrastar um PDF para a janela abre a importação
+  useEffect(() => {
+    const over = (e: DragEvent) => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault(); };
+    const drop = (e: DragEvent) => {
+      const f = [...(e.dataTransfer?.files ?? [])].find((x) => /\.pdf$/i.test(x.name));
+      if (f) { e.preventDefault(); setPdfFile(f); }
+    };
+    window.addEventListener('dragover', over);
+    window.addEventListener('drop', drop);
+    return () => { window.removeEventListener('dragover', over); window.removeEventListener('drop', drop); };
+  }, []);
   const settings = useSettings();
   const editorViews = useRef(new Map<string, EditorView>());
   const fileInput = useRef<HTMLInputElement>(null);
@@ -353,11 +377,17 @@ function Shell({ vault, vaults, onSwitchVault, account, onLogout, sync, engine }
   };
   const vaultItems = (): MenuItem[] => [
     ...vaults.map((v): MenuItem => ({
-      label: v.name, icon: '🗄', checked: v.id === vault.id, hint: String(counts.get(v.id) ?? 0), run: () => v.id !== vault.id && onSwitchVault(v.id),
+      label: v.name, icon: v.lock ? '🔒' : '🗄', checked: v.id === vault.id, hint: String(counts.get(v.id) ?? 0), run: () => v.id !== vault.id && onSwitchVault(v.id),
     })),
+    'sep',
+    vault.lock
+      ? { label: 'Trancar agora', icon: '🔒', run: lockAll }
+      : { label: `Proteger “${vault.name}” com PIN/biometria…`, icon: '🔐', run: () => void enableLock(space, account, vault) },
+    ...(vault.lock ? [{ label: 'Remover proteção…', icon: '🔓', run: () => void disableLock(space, account, vault) } as MenuItem] : []),
     'sep',
     { label: 'Novo cofre…', icon: '＋', run: () => void newVault() },
     { label: 'Abrir pasta como novo cofre (ex.: vault do Obsidian)…', icon: '📂', run: () => importInto('new') },
+    { label: 'Importar PDF (cada título vira uma nota)…', icon: '📄', run: importPdf },
     'sep',
     { label: `Renomear “${vault.name}”…`, icon: '✎', run: () => void renameCurrentVault() },
     { label: `Excluir “${vault.name}”`, icon: '🗑', danger: true, disabled: vault.id === MAIN_VAULT, run: () => void removeVault(vault) },
@@ -423,6 +453,7 @@ function Shell({ vault, vaults, onSwitchVault, account, onLogout, sync, engine }
     'sep',
     { label: 'Importar pasta neste cofre…', icon: '📥', run: () => importInto('here') },
     { label: 'Abrir pasta como novo cofre…', icon: '📂', run: () => importInto('new') },
+    { label: 'Importar PDF…', icon: '📄', run: importPdf },
     { label: 'Exportar cofre (.zip)', icon: '📦', run: () => void exportVault() },
     'sep',
     { label: 'Trocar de cofre', icon: '🗄', submenu: vaultItems() },
@@ -449,6 +480,7 @@ function Shell({ vault, vaults, onSwitchVault, account, onLogout, sync, engine }
     { id: 'split', label: 'Dividir à direita (nota atual)', run: () => activeId && splitWith({ key: tabKey(), kind: 'note', id: activeId, mode: 'preview', back: [] }) },
     { id: 'import', label: 'Importar pasta neste cofre (.md / Obsidian)', run: () => importInto('here') },
     { id: 'import-vault', label: 'Abrir pasta como novo cofre', run: () => importInto('new') },
+    { id: 'import-pdf', label: 'Importar PDF (cada título vira uma nota)', run: importPdf },
     { id: 'new-vault', label: 'Novo cofre', run: () => void newVault() },
     ...vaults.filter((v) => v.id !== vault.id).map((v) => ({ id: `vault-${v.id}`, label: `Trocar para o cofre: ${v.name}`, run: () => onSwitchVault(v.id) })),
     { id: 'export', label: 'Exportar cofre (.zip)', run: () => void exportVault() },
@@ -559,6 +591,19 @@ function Shell({ vault, vaults, onSwitchVault, account, onLogout, sync, engine }
           }
         }} />
 
+      <input ref={pdfInput} type="file" accept="application/pdf,.pdf" hidden
+        onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) setPdfFile(f); }} />
+      {pdfFile && (
+        <ImportPdf file={pdfFile} current={vault} onClose={() => setPdfFile(null)}
+          onDone={(vid, n) => {
+            setPdfFile(null);
+            push();
+            markUnlocked(vid); // quem acabou de importar já está autenticado
+            alert(`${n} notas importadas.`);
+            if (vid !== vault.id) onSwitchVault(vid);
+          }} />
+      )}
+
       <header className="topbar">
         <button className="icon-btn" title="Painel lateral (Ctrl+\)" onClick={() => setSidebar((s) => !s)}>☰</button>
         <div className="brand"><Logo size={20} /><span>Quartzo</span></div>
@@ -582,6 +627,7 @@ function Shell({ vault, vaults, onSwitchVault, account, onLogout, sync, engine }
               <button onClick={() => openSingleton('settings')}>⚙ Configurações e aparência</button>
               <button onClick={() => importInto('here')}>📥 Importar pasta neste cofre</button>
               <button onClick={() => importInto('new')}>📂 Abrir pasta como novo cofre</button>
+              <button onClick={importPdf}>📄 Importar PDF (títulos viram notas)</button>
               <button onClick={() => void exportVault()}>📦 Exportar cofre (.zip)</button>
               <button onClick={() => openSingleton('trash')}>🗑 Lixeira ({trash.length})</button>
               <button onClick={toggleTheme}>◐ Alternar tema</button>
@@ -625,7 +671,7 @@ function Shell({ vault, vaults, onSwitchVault, account, onLogout, sync, engine }
         )}
         <div className="vault-bar">
           <button className="vault-btn" title="Trocar de cofre" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); openMenu({ clientX: r.left, clientY: r.top - 8 }, vaultItems()); }}>
-            <span className="vault-ico">🗄</span>
+            <span className="vault-ico">{vault.lock ? '🔒' : '🗄'}</span>
             <span className="vault-name">{vault.name}</span>
             <small>{notes.length}</small>
             <span className="vault-chev">⇅</span>
@@ -710,7 +756,8 @@ function Shell({ vault, vaults, onSwitchVault, account, onLogout, sync, engine }
                 {tab?.kind === 'settings' && (
                   <SettingsView account={account} sync={sync.s} onImport={() => importInto('here')} onExport={() => void exportVault()} onLogout={onLogout} noteCount={notes.length}
                     vaults={vaults} current={vault.id} counts={counts} onSwitchVault={onSwitchVault} onNewVault={() => void newVault()}
-                    onImportVault={() => importInto('new')} onRenameVault={(v) => void renameCurrentVault(v)} onDeleteVault={(v) => void removeVault(v)} />
+                    onImportVault={() => importInto('new')} onRenameVault={(v) => void renameCurrentVault(v)} onDeleteVault={(v) => void removeVault(v)}
+                    onToggleLock={(v) => void (v.lock ? disableLock(space, account, v) : enableLock(space, account, v))} />
                 )}
                 {!tab && (
                   <div className="empty-state">

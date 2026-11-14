@@ -483,3 +483,24 @@ input { font: inherit; color: inherit; }
 .handoff-wait { display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--muted); font-size: 13px; }
 .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent); animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- Bloqueio de cofres ---------- */
+.lock-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-right: 4px; }
+.pin-input { text-align: center; font-size: 24px; letter-spacing: .4em; }
+.lock-vaults { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+
+/* ---------- Importar PDF ---------- */
+.import-box {
+  width: 100%; max-width: 640px; max-height: 84vh; background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+  padding: 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 30px 80px rgba(0,0,0,.45);
+}
+.import-box header { display: flex; flex-direction: column; gap: 2px; }
+.import-box footer { display: flex; gap: 8px; justify-content: flex-end; }
+.import-opts { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.import-opts label { display: flex; align-items: center; gap: 6px; }
+.import-lines { overflow: auto; flex: 1; min-height: 120px; border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
+.import-line { display: flex; align-items: flex-start; gap: 8px; padding: 3px 6px; border-radius: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.import-line:hover { background: var(--panel2); }
+.import-line.title { color: var(--text); background: color-mix(in srgb, var(--accent) 14%, transparent); margin-top: 4px; }
+.import-line span { overflow-wrap: anywhere; }
+.import-line .b { font-weight: 700; }

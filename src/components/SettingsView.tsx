@@ -18,9 +18,10 @@ interface Props {
   onImportVault: () => void;
   onRenameVault: (v: Vault) => void;
   onDeleteVault: (v: Vault) => void;
+  onToggleLock: (v: Vault) => void;
 }
 
-export function SettingsView({ account, sync, noteCount, onImport, onExport, onLogout, vaults, current, counts, onSwitchVault, onNewVault, onImportVault, onRenameVault, onDeleteVault }: Props) {
+export function SettingsView({ account, sync, noteCount, onImport, onExport, onLogout, vaults, current, counts, onSwitchVault, onNewVault, onImportVault, onRenameVault, onDeleteVault, onToggleLock }: Props) {
   const s = useSettings();
   return (
     <div className="settings">
@@ -67,14 +68,19 @@ export function SettingsView({ account, sync, noteCount, onImport, onExport, onL
       <section>
         <h3>Cofres</h3>
         <p className="muted small">Cada cofre é um conjunto separado de notas (como um vault do Obsidian): links, grafo, tags e busca
-          enxergam só o cofre aberto. Todos sincronizam com a sua conta.</p>
+          enxergam só o cofre aberto. Todos sincronizam com a sua conta. Ligue <b>PIN/biometria</b> para pedir a digital ou o PIN do
+          celular (Windows Hello no PC) toda vez que o cofre for aberto — ele tranca de novo após 2 min em segundo plano.</p>
         {vaults.map((v) => (
           <div key={v.id} className={`set-row vault-row${v.id === current ? ' on' : ''}`}>
             <div>
-              <b>🗄 {v.name}{v.id === current && <small className="badge">aberto</small>}</b>
-              <p>{counts.get(v.id) ?? 0} notas{v.id === MAIN_VAULT ? ' · cofre principal' : ''}</p>
+              <b>{v.lock ? '🔒' : '🗄'} {v.name}{v.id === current && <small className="badge">aberto</small>}</b>
+              <p>{counts.get(v.id) ?? 0} notas{v.id === MAIN_VAULT ? ' · cofre principal' : ''}{v.lock ? ' · protegido por PIN/biometria' : ''}</p>
             </div>
             <div className="row-btns">
+              <label className="lock-toggle" title="Pedir PIN/biometria do aparelho para abrir este cofre">
+                <span>PIN/biometria</span>
+                <button type="button" className={`switch${v.lock ? ' on' : ''}`} aria-pressed={!!v.lock} onClick={() => onToggleLock(v)}><i /></button>
+              </label>
               {v.id !== current && <button className="btn small" onClick={() => onSwitchVault(v.id)}>Abrir</button>}
               <button className="btn small ghost" onClick={() => onRenameVault(v)}>Renomear</button>
               {v.id !== MAIN_VAULT && <button className="btn small ghost danger" onClick={() => onDeleteVault(v)}>Excluir</button>}

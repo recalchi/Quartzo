@@ -8,7 +8,7 @@
 
 Markdown · links entre notas · grafo · offline · sincronizado com o **Recalchi Manage**
 
-![versão](https://img.shields.io/badge/versão-0.4.0-a3a3a3)
+![versão](https://img.shields.io/badge/versão-0.5.0-a3a3a3)
 ![plataformas](https://img.shields.io/badge/plataformas-Web%20%7C%20Windows%20%7C%20Android-e58cc0)
 ![stack](https://img.shields.io/badge/React%2018-Vite-646cff)
 ![firebase](https://img.shields.io/badge/Firebase-Auth%20%2B%20Firestore-ffca28)
@@ -42,6 +42,8 @@ roda igual no **desktop, no navegador e no celular**, sincronizando em tempo rea
 
 | | |
 |---|---|
+| 🔒 **Cofres protegidos** | ligue "PIN/biometria" por cofre: pede a digital ou o PIN do celular (Windows Hello no PC; PIN do Quartzo onde não houver) e tranca após 2 min em segundo plano |
+| 📄 **Importar PDF** | cada título em negrito vira uma nota; prévia para ajustar os títulos; lido só no aparelho |
 | 🗄️ **Cofres** | vários cofres na mesma conta (Trabalho, Pessoal…), cada um com seus links, grafo e tags; abra uma pasta do Obsidian como cofre novo |
 | ✍️ **Editor Markdown** | CodeMirror 6 com títulos em destaque, busca (Ctrl+F) e autocompletar de `[[links]]` |
 | 🖱️ **Botão direito** | no editor: recortar/copiar/colar, formatar, títulos, listas, tabela, callout, extrair seleção para nova nota; na árvore: criar, renomear, mover, duplicar, mover de cofre |

@@ -10,6 +10,8 @@ export interface Vault {
   id: string;
   name: string;
   createdAt: number;
+  /** pede PIN/biometria do aparelho para abrir */
+  lock?: boolean;
 }
 
 export const MAIN_VAULT = 'main';
@@ -27,7 +29,7 @@ export function normalizeVaults(list: unknown): Vault[] {
   const arr = Array.isArray(list) ? list : [];
   const out: Vault[] = arr
     .filter((v): v is Vault => !!v && typeof (v as Vault).id === 'string' && typeof (v as Vault).name === 'string')
-    .map((v) => ({ id: v.id, name: v.name.slice(0, 80), createdAt: Number(v.createdAt) || 0 }));
+    .map((v) => ({ id: v.id, name: v.name.slice(0, 80), createdAt: Number(v.createdAt) || 0, ...(v.lock ? { lock: true } : {}) }));
   if (!out.some((v) => v.id === MAIN_VAULT)) out.unshift(DEFAULT_VAULTS[0]);
   return out;
 }
@@ -58,6 +60,11 @@ export async function createVault(name: string): Promise<Vault> {
 export async function renameVault(id: string, name: string) {
   const { list } = await readVaults();
   await writeVaults(list.map((v) => (v.id === id ? { ...v, name: name.trim() || v.name } : v)));
+}
+
+export async function setVaultLock(id: string, lock: boolean) {
+  const { list } = await readVaults();
+  await writeVaults(list.map((v) => (v.id === id ? { ...v, lock: lock || undefined } : v)));
 }
 
 /** Remove o cofre da lista e manda as notas dele para a lixeira (recuperáveis). */

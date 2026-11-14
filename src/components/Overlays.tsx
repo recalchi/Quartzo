@@ -13,7 +13,7 @@ export type MenuItem =
 
 type Overlay =
   | { kind: 'menu'; x: number; y: number; items: MenuItem[] }
-  | { kind: 'prompt'; title: string; value: string; placeholder?: string; ok: string; resolve: (v: string | null) => void }
+  | { kind: 'prompt'; title: string; value: string; placeholder?: string; ok: string; secret?: boolean; hint?: string; resolve: (v: string | null) => void }
   | { kind: 'color'; x: number; y: number; title: string; value: string | null; resolve: (v: string | null | undefined) => void };
 
 let current: Overlay | null = null;
@@ -27,8 +27,8 @@ export function openMenu(e: { clientX: number; clientY: number; preventDefault?:
 }
 
 /** Pede um texto ao usuário (substitui window.prompt). Resolve null se cancelar. */
-export function askText(title: string, value = '', opts: { placeholder?: string; ok?: string } = {}): Promise<string | null> {
-  return new Promise((resolve) => set({ kind: 'prompt', title, value, placeholder: opts.placeholder, ok: opts.ok ?? 'OK', resolve }));
+export function askText(title: string, value = '', opts: { placeholder?: string; ok?: string; secret?: boolean; hint?: string } = {}): Promise<string | null> {
+  return new Promise((resolve) => set({ kind: 'prompt', title, value, placeholder: opts.placeholder, ok: opts.ok ?? 'OK', secret: opts.secret, hint: opts.hint, resolve }));
 }
 
 /** Seletor de cor. Resolve a cor, null para "remover cor" ou undefined se cancelar. */
@@ -129,7 +129,9 @@ function PromptBox({ o }: { o: Extract<Overlay, { kind: 'prompt' }> }) {
       <form className="prompt-box" onMouseDown={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); done(v.trim() || null); }}>
         <label>{o.title}</label>
         <input autoFocus value={v} placeholder={o.placeholder} onChange={(e) => setV(e.target.value)} onFocus={(e) => e.target.select()}
-          onKeyDown={(e) => e.key === 'Escape' && done(null)} />
+          onKeyDown={(e) => e.key === 'Escape' && done(null)}
+          {...(o.secret ? { type: 'password', inputMode: 'numeric' as const, autoComplete: 'off' } : {})} />
+        {o.hint && <small className="muted">{o.hint}</small>}
         <div className="row-btns">
           <button type="button" className="btn small ghost" onClick={() => done(null)}>Cancelar</button>
           <button type="submit" className="btn small primary">{o.ok}</button>

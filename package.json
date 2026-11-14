@@ -2,7 +2,7 @@
   "name": "quartzo",
   "productName": "Quartzo",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Quartzo — notas em Markdown conectadas, local-first e sincronizadas com o Recalchi Manage.",
   "author": "Renan Recalchi",
   "license": "MIT",
@@ -21,6 +21,7 @@
     "android:apk": "npm run android:sync && node scripts/build-apk.mjs"
   },
   "dependencies": {
+    "@aparajita/capacitor-biometric-auth": "9.1.2",
     "@capacitor/android": "^7.4.0",
     "@capacitor/app": "^7.0.1",
     "@capacitor/core": "^7.4.0",
@@ -40,6 +41,7 @@
     "firebase": "^12.15.0",
     "jszip": "^3.10.1",
     "marked": "^15.0.12",
+    "pdfjs-dist": "4.10.38",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
