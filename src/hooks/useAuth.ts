@@ -78,10 +78,17 @@ export function useAuth() {
     if (sessionStorage.getItem(REDIRECT_FLAG)) {
       holding.current = true;
       sessionStorage.removeItem(REDIRECT_FLAG);
+      // sem resultado (ou erro): solta a espera e mostra o estado atual — antes ficava preso no splash
+      const settle = () => {
+        holding.current = false;
+        const u = auth!.currentUser;
+        if (u) { rememberAccount(u); setSession({ kind: 'user', user: u }); }
+        else setSession(safeGet(LOCAL_KEY) === '1' ? { kind: 'local' } : { kind: 'signed-out' });
+      };
       getRedirectResult(auth).then((cred) => {
         if (cred) { keepGoogleCredential(cred); decide(cred.user, !!getAdditionalUserInfo(cred)?.isNewUser); }
-        else holding.current = false;
-      }).catch(() => { holding.current = false; });
+        else settle();
+      }).catch(settle);
     }
     return onAuthStateChanged(auth, (u) => {
       if (holding.current) return;
