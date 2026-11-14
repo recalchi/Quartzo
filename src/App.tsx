@@ -3,7 +3,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import type { EditorView } from '@codemirror/view';
 import { undo as cmUndo, redo as cmRedo } from '@codemirror/commands';
 import { useAuth } from './hooks/useAuth';
-import { Login } from './components/Login';
+import { AccountGate, HandoffConfirm, Login } from './components/Login';
+import { readHandoffParams } from './lib/googleAuth';
 import { Logo } from './components/Logo';
 import { Sidebar } from './components/Sidebar';
 import { Editor, type EditorActions } from './components/Editor';
@@ -44,6 +45,8 @@ const defaultMode = (): Mode => (safeGet(modeKey()) as Mode) || (isMobile() ? 'p
 export default function App() {
   const api = useAuth();
   const { session } = api;
+  // navegador aberto pelo app (desktop/Android) para entrar com Google
+  const [handoff, setHandoff] = useState(() => readHandoffParams());
 
   if (session.kind === 'loading') {
     return (
@@ -52,7 +55,14 @@ export default function App() {
       </div>
     );
   }
-  if (session.kind === 'signed-out') return <Login api={api} />;
+  if (session.kind === 'gate') return <AccountGate api={api} gate={session.gate} />;
+  if (session.kind === 'signed-out' || (handoff && session.kind === 'local')) {
+    return <Login api={api} handoffFor={handoff?.challenge ?? null} />;
+  }
+  if (handoff && session.kind === 'user') {
+    return <HandoffConfirm user={session.user} challenge={handoff.challenge} onDone={() => setHandoff(null)}
+      onLogout={() => void api.logout()} />;
+  }
 
   const space = session.kind === 'user' ? session.user.uid : 'local';
   const label = session.kind === 'user' ? session.user.email ?? 'Conta Recalchi' : 'Somente neste dispositivo';

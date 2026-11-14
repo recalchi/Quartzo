@@ -8,7 +8,7 @@
 
 Markdown · links entre notas · grafo · offline · sincronizado com o **Recalchi Manage**
 
-![versão](https://img.shields.io/badge/versão-0.3.1-a3a3a3)
+![versão](https://img.shields.io/badge/versão-0.4.0-a3a3a3)
 ![plataformas](https://img.shields.io/badge/plataformas-Web%20%7C%20Windows%20%7C%20Android-e58cc0)
 ![stack](https://img.shields.io/badge/React%2018-Vite-646cff)
 ![firebase](https://img.shields.io/badge/Firebase-Auth%20%2B%20Firestore-ffca28)
@@ -56,7 +56,8 @@ roda igual no **desktop, no navegador e no celular**, sincronizando em tempo rea
 | 📅 **Nota do dia** | diário com modelo de tarefas (Ctrl+D) |
 | ⚡ **Busca rápida e comandos** | Ctrl+P para abrir/criar notas, `>` para comandos |
 | ☁️ **Sync em tempo real** | Firestore + IndexedDB, funciona offline e resolve conflitos sem perder texto |
-| 🔐 **Conta Recalchi Manage** | mesmo login; painel em `recalchimanage.com/quartzo/painel` |
+| 🔐 **Conta Google** | cadastro e login só com Google (sem senha); "Continuar como…" com a última conta; no desktop e no Android o login é concluído no navegador com código de confirmação |
+| 🏢 **Recalchi Manage** | mesma conta da plataforma; painel em `recalchimanage.com/quartzo/painel` |
 | 📥 **Importar/Exportar** | importa uma pasta de `.md` (inclusive vaults do Obsidian) e exporta `.zip` |
 | 🌓 **Aparência** | escuro neutro por padrão, claro ou do sistema; cor de destaque à escolha |
 

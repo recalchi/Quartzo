@@ -3,6 +3,7 @@ import {
   initializeAuth,
   indexedDBLocalPersistence,
   browserLocalPersistence,
+  browserPopupRedirectResolver,
   type Auth,
 } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
@@ -29,7 +30,13 @@ if (firebaseConfigured) {
   app = initializeApp(config);
   // initializeAuth (e não getAuth) para funcionar dentro do WebView do Android
   // e do Electron, que não suportam o resolver de popup/redirect.
-  auth = initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence] });
+  // o resolver de popup só é usado no navegador (login com Google); os apps entram pelo navegador do sistema
+  const web = location.protocol === 'https:' || location.protocol === 'http:';
+  const native = !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.();
+  auth = initializeAuth(app, {
+    persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+    ...(web && !native ? { popupRedirectResolver: browserPopupRedirectResolver } : {}),
+  });
   db = getFirestore(app);
 }
 
