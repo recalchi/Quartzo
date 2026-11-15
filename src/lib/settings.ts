@@ -20,6 +20,12 @@ export interface GraphSettings {
   textFadeThreshold: number; // zoom a partir do qual os nomes aparecem
   nodeSize: number; // multiplicador
   linkThickness: number;
+  /** quanto o volume de conteúdo da nota pesa no tamanho da bolinha (0 = todas iguais) */
+  sizeContrast: number;
+  /** flutuação ambiente e molas */
+  motion: boolean;
+  /** pulsos correndo nos fios do nó em foco */
+  particles: boolean;
   /** cor padrão das bolinhas de nota / de tag (null = cor do tema) */
   nodeColor: string | null;
   tagNodeColor: string | null;
@@ -62,6 +68,9 @@ export const DEFAULT_GRAPH: GraphSettings = {
   textFadeThreshold: 0.9,
   nodeSize: 1,
   linkThickness: 1,
+  sizeContrast: 1,
+  motion: true,
+  particles: true,
   nodeColor: null,
   tagNodeColor: null,
   centerForce: 0.5,
