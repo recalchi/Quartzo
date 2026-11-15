@@ -50,7 +50,7 @@ export function buildGraphData(notes: Note[], index: VaultIndex, g: GraphSetting
     const radius = Math.min(30, 4.2 + 15 * contrast * vol + Math.sqrt(degree) * 1.3);
     const info = `${words} ${words === 1 ? 'palavra' : 'palavras'} · ${degree} ${degree === 1 ? 'conexão' : 'conexões'}`;
     const group = g.groups.find((gr) => matches(gr.query, n, tagsOf.get(n.id)!));
-    nodes.push({ id: n.id, kind: 'note', label: titleOf(n.path), radius, color: group?.color ?? null, createdAt: n.createdAt, info });
+    nodes.push({ id: n.id, kind: 'note', label: titleOf(n.path), radius, color: group?.color || null, createdAt: n.createdAt, info });
   }
   const ids = new Set(nodes.map((n) => n.id));
 
@@ -81,7 +81,7 @@ export function buildGraphData(notes: Note[], index: VaultIndex, g: GraphSetting
         if (!ids.has(id)) {
           ids.add(id);
           const count = index.tags.get(t)?.length ?? 1;
-          nodes.push({ id, kind: 'tag', label: `#${t}`, radius: Math.min(14, 3 + Math.sqrt(count) * 2), color: tagColor(t, g.groups), createdAt: 0, info: `${count} ${count === 1 ? 'nota' : 'notas'}` });
+          nodes.push({ id, kind: 'tag', label: `#${t}`, radius: Math.min(14, 3 + Math.sqrt(count) * 2), color: tagColor(t, g.groups) || null, createdAt: 0, info: `${count} ${count === 1 ? 'nota' : 'notas'}` });
         }
         links.push({ source: n.id, target: id });
       }

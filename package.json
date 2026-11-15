@@ -2,7 +2,7 @@
   "name": "quartzo",
   "productName": "Quartzo",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Quartzo — notas em Markdown conectadas, local-first e sincronizadas com o Recalchi Manage.",
   "author": "Renan Recalchi",
   "license": "MIT",

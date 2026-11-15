@@ -65,7 +65,11 @@ const easeOutBack = (t: number) => {
 /** mesma cor com alfa 0 (fim do gradiente de brilho) */
 const fadeOf = (c: string) => {
   const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(c.trim());
-  if (!m) return 'rgba(128,128,128,0)';
+  if (!m) {
+    const rgb = /^rgba?(([^)]+))$/i.exec(c.trim());
+    if (rgb) { const [r, g, b] = rgb[1].split(/[ ,/]+/); return `rgba(${r},${g},${b},0)`; }
+    return 'rgba(128,128,128,0)';
+  }
   const h = m[1].length === 3 ? [...m[1]].map((x) => x + x).join('') : m[1];
   return `rgba(${parseInt(h.slice(0, 2), 16)},${parseInt(h.slice(2, 4), 16)},${parseInt(h.slice(4, 6), 16)},0)`;
 };
@@ -98,6 +102,9 @@ export class GraphEngine {
   private downAt: { x: number; y: number; t: number; touch: boolean } | null = null;
   private pinch: { d: number; scale: number } | null = null;
   private raf = 0;
+  /** desliga o gradiente de brilho se ele já falhou neste aparelho */
+  private safeGlow = false;
+  private drawErrors = 0;
   /** zoom suave: a escala desliza até o alvo mantendo o ponto âncora parado */
   private zoomAnim: { target: number; ax: number; ay: number } | null = null;
   /** inércia do arrasto do fundo */
@@ -346,7 +353,17 @@ export class GraphEngine {
         this.fitted = true;
       }
     }
-    this.draw();
+    try {
+      this.draw();
+    } catch (err) {
+      // um nó com dado estranho não pode apagar o grafo inteiro: tenta de novo sem os efeitos
+      this.drawErrors++;
+      if (this.drawErrors === 1) console.error('[grafo] erro ao desenhar, usando modo simples', err);
+      this.safeGlow = true;
+      this.ctx.restore();
+      this.ctx.globalAlpha = 1;
+      if (this.drawErrors < 5) { try { this.draw(); } catch { /* segue no próximo quadro */ } }
+    }
     // conta nós de nota fora da tela (a cada ~400 ms)
     const t = performance.now();
     if (t - this.offCheck > 400) {
@@ -480,11 +497,8 @@ export class GraphEngine {
         // brilho suave: mais forte no nó em foco, pulsante na nota aberta
         const pulse = isFocus ? 1 : 1 + Math.sin(now / 450) * 0.08;
         const gr = r * (isFocus ? 3 : 2.2) * pulse;
-        const g = ctx.createRadialGradient(n.rx, n.ry, r * 0.9, n.rx, n.ry, gr);
-        g.addColorStop(0, fill);
-        g.addColorStop(1, fadeOf(fill));
         ctx.globalAlpha = (isFocus ? 0.4 : 0.28) * n.focus;
-        ctx.fillStyle = g;
+        ctx.fillStyle = this.glow(n.rx, n.ry, r, gr, fill);
         ctx.beginPath();
         ctx.arc(n.rx, n.ry, gr, 0, Math.PI * 2);
         ctx.fill();
@@ -540,6 +554,21 @@ export class GraphEngine {
     ctx.restore();
     ctx.globalAlpha = 1;
     this.drawCard(focusNode);
+  }
+
+  /** Brilho radial; se a cor ou a posição não servirem para gradiente, usa cor sólida suave. */
+  private glow(x: number, y: number, r0: number, r1: number, color: string): string | CanvasGradient {
+    if (!this.safeGlow && Number.isFinite(x) && Number.isFinite(y) && r0 >= 0 && r1 > r0) {
+      try {
+        const g = this.ctx.createRadialGradient(x, y, r0, x, y, r1);
+        g.addColorStop(0, color);
+        g.addColorStop(1, fadeOf(color));
+        return g;
+      } catch {
+        /* cor em formato que o gradiente não aceita */
+      }
+    }
+    return color;
   }
 
   /** raio desenhado do nó (mundo) */
