@@ -23,7 +23,8 @@ import {
 import {
   createVault, deleteVault, DEFAULT_VAULTS, MAIN_VAULT, readVaults, renameVault, setCurrentVault, vaultOf, type Vault,
 } from './lib/vaults';
-import { buildIndex, extractHeadings, resolveLink, type VaultIndex } from './lib/links';
+import { buildIndex, extractHeadings, frontmatter, resolveLink, type VaultIndex } from './lib/links';
+import { withIcon } from './lib/icons';
 import { renderMarkdown, toggleTask } from './lib/markdown';
 import { SyncEngine, type SyncState } from './lib/sync';
 import { download, exportZip, importFiles, rootFolderName } from './lib/importExport';
@@ -442,6 +443,12 @@ function Shell({ space, vault, vaults, onSwitchVault, account, onLogout, sync, e
     } as MenuItem] : []),
     { label: 'Duplicar', icon: '⎘', run: async () => { const c = await duplicateNote(n); push(); open(c.id, { newTab: true }); } },
     { label: n.pinned ? 'Desafixar' : 'Fixar no topo', icon: n.pinned ? '★' : '☆', run: async () => { await updateNote(n.id, { pinned: n.pinned ? 0 : 1 }); push(); } },
+    { label: 'Ícone no grafo…', icon: '◉', run: async () => {
+      const cur = frontmatter(n.content).icon?.[0] ?? '';
+      const v = await askText('Ícone da bolinha no grafo', cur, { ok: 'Salvar', placeholder: 'apple · nubank.com.br · 🚀', hint: 'Nome da marca (Simple Icons), site da empresa, link de imagem ou emoji. Vazio remove.' });
+      if (v === null) return;
+      await updateNote(n.id, { content: withIcon(n.content, v) }); push();
+    } },
     { label: 'Copiar link [[ ]]', icon: '🔗', run: () => void navigator.clipboard?.writeText(`[[${titleOf(n.path)}]]`) },
     'sep',
     { label: 'Excluir', icon: '🗑', danger: true, run: () => void remove(n) },

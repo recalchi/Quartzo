@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Note } from '../lib/db';
 import type { VaultIndex } from '../lib/links';
-import { extractTags } from '../lib/links';
+import { extractTags, frontmatter } from '../lib/links';
 import { normalizeKey, titleOf } from '../lib/notes';
 import { GraphEngine, type GraphData } from '../lib/graphEngine';
 import {
@@ -47,10 +47,13 @@ export function buildGraphData(notes: Note[], index: VaultIndex, g: GraphSetting
     const degree = (index.outgoing.get(n.id)?.length ?? 0) + (index.backlinks.get(n.id)?.length ?? 0);
     // área da bolinha ∝ volume de conteúdo (caracteres), com um extra pelas conexões
     const vol = Math.min(1.3, Math.sqrt(n.content.trim().length / ref));
-    const radius = Math.min(30, 4.2 + 15 * contrast * vol + Math.sqrt(degree) * 1.3);
+    const icon = g.icons !== false ? frontmatter(n.content).icon?.[0] || undefined : undefined;
+    let radius = Math.min(30, 4.2 + 15 * contrast * vol + Math.sqrt(degree) * 1.3);
+    // com ícone: tamanho mínimo para o logo ser legível + um incremento
+    if (icon) radius = Math.max(radius, 8) + (g.iconBoost ?? 4);
     const info = `${words} ${words === 1 ? 'palavra' : 'palavras'} · ${degree} ${degree === 1 ? 'conexão' : 'conexões'}`;
     const group = g.groups.find((gr) => matches(gr.query, n, tagsOf.get(n.id)!));
-    nodes.push({ id: n.id, kind: 'note', label: titleOf(n.path), radius, color: group?.color || null, createdAt: n.createdAt, info });
+    nodes.push({ id: n.id, kind: 'note', label: titleOf(n.path), radius, color: group?.color || null, createdAt: n.createdAt, info, icon });
   }
   const ids = new Set(nodes.map((n) => n.id));
 
@@ -131,7 +134,7 @@ export function GraphView({ notes, index, activeId, onOpen, local = false }: Pro
     () => buildGraphData(notes, index, g, local ? { center: activeId, depth: settings.localGraphDepth } : null),
     // forças e exibição não exigem recalcular os dados
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [notes, index, g.search, g.showTags, g.showOrphans, g.showUnresolved, g.groups, g.sizeContrast, local, local ? activeId : null, settings.localGraphDepth],
+    [notes, index, g.search, g.showTags, g.showOrphans, g.showUnresolved, g.groups, g.sizeContrast, g.icons, g.iconBoost, local, local ? activeId : null, settings.localGraphDepth],
   );
 
   useEffect(() => {
@@ -245,6 +248,8 @@ export function GraphView({ notes, index, activeId, onOpen, local = false }: Pro
             <Toggle label="Setas" value={g.arrows} onChange={(v) => setGraph({ arrows: v })} />
             <Slider label="Limite para texto" min={0.2} max={2} step={0.05} value={g.textFadeThreshold} onChange={(v) => setGraph({ textFadeThreshold: v })} />
             <Toggle label="Movimento (flutuar e molas)" value={g.motion !== false} onChange={(v) => setGraph({ motion: v })} />
+            <Toggle label="Ícones nas bolinhas" value={g.icons !== false} onChange={(v) => setGraph({ icons: v })} />
+            <Slider label="Aumento com ícone" min={0} max={12} step={0.5} value={g.iconBoost ?? 4} onChange={(v) => setGraph({ iconBoost: v })} />
             <Toggle label="Pulsos nos fios em foco" value={g.particles !== false} onChange={(v) => setGraph({ particles: v })} />
             <Slider label="Tamanho pelo conteúdo" min={0} max={2} step={0.05} value={g.sizeContrast ?? 1} onChange={(v) => setGraph({ sizeContrast: v })} />
             <Slider label="Tamanho dos nós" min={0.4} max={2.5} step={0.05} value={g.nodeSize} onChange={(v) => setGraph({ nodeSize: v })} />

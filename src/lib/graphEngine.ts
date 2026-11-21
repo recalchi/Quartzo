@@ -1,3 +1,4 @@
+import { iconImage, parseIcon } from './icons';
 import {
   forceSimulation,
   forceLink,
@@ -27,6 +28,8 @@ export interface GNode extends SimulationNodeDatum {
   bornAt?: number; // nó recém-criado: anel de destaque por alguns segundos
   /** resumo mostrado no cartão ao passar o mouse (ex.: "120 palavras · 3 conexões") */
   info?: string;
+  /** ícone (valor do frontmatter `icon:`) */
+  icon?: string;
   rc: number; // raio desenhado (anima até `radius` quando a nota cresce)
   hs: number; // escala de destaque (mola): hover, vizinho, proximidade do cursor
   hv: number; // velocidade da mola
@@ -514,7 +517,10 @@ export class GraphEngine {
       ctx.beginPath();
       ctx.arc(n.rx, n.ry, r, 0, Math.PI * 2);
       ctx.fill();
+      if (n.icon && s.icons !== false && r * this.scale > 5) this.drawIcon(n, r);
       if (isActive || isFocus) {
+        ctx.beginPath();
+        ctx.arc(n.rx, n.ry, r, 0, Math.PI * 2);
         ctx.strokeStyle = p.ring;
         ctx.globalAlpha = (isActive ? 1 : 0.7) * n.focus;
         ctx.lineWidth = 1.5 / this.scale;
@@ -569,6 +575,44 @@ export class GraphEngine {
       }
     }
     return color;
+  }
+
+  /** Ícone dentro da bolinha: selo claro + logo (ou emoji / inicial enquanto carrega). */
+  private drawIcon(n: GNode, r: number) {
+    const ic = parseIcon(n.icon, n.label);
+    if (!ic) return;
+    const { ctx } = this;
+    const a = ctx.globalAlpha;
+    if (ic.kind === 'emoji') {
+      ctx.font = `${r * 1.15}px ${this.fontFamily}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(ic.text, n.rx, n.ry + r * 0.05);
+      return;
+    }
+    // selo claro: logos pretos e coloridos ficam legíveis em qualquer tema
+    ctx.fillStyle = '#f4f4f5';
+    ctx.globalAlpha = a * 0.96;
+    ctx.beginPath();
+    ctx.arc(n.rx, n.ry, r * 0.86, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = a;
+    const img = iconImage(ic.url);
+    if (img) {
+      const s = r * 1.06;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(n.rx, n.ry, r * 0.86, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(img, n.rx - s / 2, n.ry - s / 2, s, s);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = '#3f3f46';
+      ctx.font = `600 ${r * 0.95}px ${this.fontFamily}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(ic.fallback, n.rx, n.ry + r * 0.04);
+    }
   }
 
   /** raio desenhado do nó (mundo) */

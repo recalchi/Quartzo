@@ -26,6 +26,10 @@ export interface GraphSettings {
   motion: boolean;
   /** pulsos correndo nos fios do nó em foco */
   particles: boolean;
+  /** desenha o ícone da nota (frontmatter `icon:`) dentro da bolinha */
+  icons: boolean;
+  /** quanto a bolinha cresce quando tem ícone */
+  iconBoost: number;
   /** cor padrão das bolinhas de nota / de tag (null = cor do tema) */
   nodeColor: string | null;
   tagNodeColor: string | null;
@@ -71,6 +75,8 @@ export const DEFAULT_GRAPH: GraphSettings = {
   sizeContrast: 1,
   motion: true,
   particles: true,
+  icons: true,
+  iconBoost: 4,
   nodeColor: null,
   tagNodeColor: null,
   centerForce: 0.5,
